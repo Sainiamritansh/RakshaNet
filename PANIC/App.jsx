@@ -5,11 +5,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { Audio } from "expo-av";
 import { setNotificationHandler } from "expo-notifications";
 import { requestNotificationPermissions, showNotification } from "./services/Notification";
+import { requestForegroundPermissionsAsync, getCurrentPositionAsync } from "expo-location";
 import socket from "./services/socket";
 
 import Home from "./Pages/Home";
 import Location from "./Pages/Location";
 import Weather from "./Pages/Weather";
+import EmergencyContacts from "./Pages/EmergencyContacts";
 import audio from "./assets/eas.mp3";
 import { MarkersProvider } from "./context/MarkersContext";
 
@@ -80,6 +82,7 @@ export default function App() {
               Home: "home",
               Location: "location",
               Info: "info",
+              Contacts: "contacts",
             },
           },
         }}
@@ -92,6 +95,7 @@ export default function App() {
               if (route.name === "Home") iconName = "home-outline";
               else if (route.name === "Location") iconName = "location-outline";
               else if (route.name === "Info") iconName = "cloud-outline";
+              else if (route.name === "Contacts") iconName = "people-outline";
 
               return <Ionicons name={iconName} size={size} color={color} />;
             },
@@ -102,9 +106,15 @@ export default function App() {
           <Tab.Screen name="Home" component={Home} initialParams={location} />
           <Tab.Screen name="Location" component={Location} />
           <Tab.Screen name="Info" component={Weather} initialParams={location} />
+          <Tab.Screen 
+            name="Contacts" 
+            component={EmergencyContacts}
+            options={{
+              tabBarLabel: "Emergency",
+            }}
+          />
         </Tab.Navigator>
       </NavigationContainer>
     </MarkersProvider>
   );
 }
-

@@ -13,7 +13,27 @@
       "backgroundColor": "#ffffff"
     },
     "plugins": [
-      "expo-font"
+      "expo-font",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow RakshaNet to use Face ID for stopping emergency mode"
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow RakshaNet to access your camera for emergency recording",
+          "microphonePermission": "Allow RakshaNet to record audio during emergencies"
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow RakshaNet to save emergency videos",
+          "savePhotosPermission": "Allow RakshaNet to save emergency videos to your device"
+        }
+      ]
     ],
     "ios": {
       "supportsTablet": true,
@@ -36,7 +56,13 @@
         "RECEIVE_BOOT_COMPLETED",
         "WAKE_LOCK",
         "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION"
+        "ACCESS_COARSE_LOCATION",
+        "CAMERA",
+        "RECORD_AUDIO",
+        "READ_MEDIA_VIDEO",
+        "WRITE_EXTERNAL_STORAGE",
+        "USE_BIOMETRIC",
+        "USE_FINGERPRINT"
       ],
       "runtimeVersion": "1.0.0"
     },
