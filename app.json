@@ -1,0 +1,78 @@
+{
+  "expo": {
+    "name": "RakshaNet",
+    "slug": "rakshanet",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/logo.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash.jpeg",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "plugins": [
+      "expo-font",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow RakshaNet to use Face ID for stopping emergency mode"
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow RakshaNet to access your camera for emergency recording",
+          "microphonePermission": "Allow RakshaNet to record audio during emergencies"
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow RakshaNet to save emergency videos",
+          "savePhotosPermission": "Allow RakshaNet to save emergency videos to your device"
+        }
+      ]
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "runtimeVersion": {
+        "policy": "appVersion"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyAOaOuZAqzTF6g9XBFi3B-yd8VtarwZCPM"
+        }
+      },
+      "package": "com.rakshanet.app",
+      "permissions": [
+        "RECEIVE_BOOT_COMPLETED",
+        "WAKE_LOCK",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "CAMERA",
+        "RECORD_AUDIO",
+        "READ_MEDIA_VIDEO",
+        "WRITE_EXTERNAL_STORAGE",
+        "USE_BIOMETRIC",
+        "USE_FINGERPRINT"
+      ],
+      "runtimeVersion": "1.0.0"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "602d7eb4-5a42-4894-a715-072d2b4504b0"
+      }
+    }
+  }
+}
