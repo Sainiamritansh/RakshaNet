@@ -7,7 +7,6 @@ import { setNotificationHandler } from "expo-notifications";
 import { requestNotificationPermissions, showNotification } from "./services/Notification";
 import { requestForegroundPermissionsAsync, getCurrentPositionAsync } from "expo-location";
 import socket from "./services/socket";
-import SOS from './Pages/SOS';
 import Home from "./Pages/Home";
 import Location from "./Pages/Location";
 import Weather from "./Pages/Weather";
@@ -85,7 +84,6 @@ export default function App() {
               Location: "location",
               Info: "info",
               Contacts: "contacts",
-              SOS: "sos",
             },
           },
         }}
@@ -99,7 +97,6 @@ export default function App() {
               else if (route.name === "Location") iconName = "location-outline";
               else if (route.name === "Info") iconName = "cloud-outline";
               else if (route.name === "Contacts") iconName = "people-outline";
-              else if (route.name === "SOS") iconName = "alert-circle-outline";
               
               return <Ionicons name={iconName} size={size} color={color} />;
             },
@@ -109,13 +106,6 @@ export default function App() {
         >
           <Tab.Screen name="Home" component={Home} initialParams={location} />
           <Tab.Screen name="Location" component={Location} />
-          <Tab.Screen 
-            name="SOS" 
-            component={SOS}
-            options={{
-              tabBarLabel: "SOS",
-            }}
-          />
           <Tab.Screen name="Info" component={Weather} initialParams={location} />
           <Tab.Screen 
             name="Contacts" 

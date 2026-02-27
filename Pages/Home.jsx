@@ -13,15 +13,24 @@ import {
   ScrollView,
   StatusBar,
 } from 'react-native';
-import Geolocation from '@react-native-community/geolocation';
 import { useNavigation } from '@react-navigation/native';
+import * as Battery from 'expo-battery';
+import * as Network from 'expo-network';
+import * as Location from 'expo-location';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import socket from '../services/socket';
+import { db } from '../services/firebase';
+import { collection, getDocs } from 'firebase/firestore';
 
-const SOS = () => {
+const CONTACTS_KEY = '@emergency_contacts';
+
+const Home = () => {
   const navigation = useNavigation();
   const [showModal, setShowModal] = useState(false);
   const [selectedEmergency, setSelectedEmergency] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentLocation, setCurrentLocation] = useState(null);
+  const [emergencyContacts, setEmergencyContacts] = useState([]);
   const pulseAnim = new Animated.Value(1);
 
   const emergencyTypes = [
@@ -76,6 +85,7 @@ const SOS = () => {
   ];
 
   useEffect(() => {
+    // Pulse animation
     Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
@@ -90,114 +100,357 @@ const SOS = () => {
         }),
       ])
     ).start();
+
+    // Load emergency contacts initially
+    loadEmergencyContacts();
+    
+    // Reload contacts periodically to catch updates
+    const interval = setInterval(() => {
+      loadEmergencyContacts();
+    }, 3000); // Check every 3 seconds
+
+    return () => clearInterval(interval);
   }, []);
 
-  const requestLocationPermission = async () => {
-    if (Platform.OS === 'android') {
-      try {
-        const granted = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-          {
-            title: 'Location Permission',
-            message: 'RakshaNet needs access to your location for emergency alerts',
-            buttonNeutral: 'Ask Me Later',
-            buttonNegative: 'Cancel',
-            buttonPositive: 'OK',
+  const loadEmergencyContacts = async () => {
+    try {
+      console.log('📥 Loading emergency contacts...');
+      
+      // Try Firebase first
+      if (db) {
+        try {
+          const contactsRef = collection(db, 'emergencyContacts');
+          const snapshot = await getDocs(contactsRef);
+          const contacts = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }));
+          
+          if (contacts.length > 0) {
+            setEmergencyContacts(contacts);
+            console.log('📞 Loaded emergency contacts from Firebase:', JSON.stringify(contacts, null, 2));
+            return;
           }
-        );
-        return granted === PermissionsAndroid.RESULTS.GRANTED;
-      } catch (err) {
-        console.warn(err);
-        return false;
+        } catch (firebaseError) {
+          console.warn('⚠️ Firebase failed, trying AsyncStorage:', firebaseError.message);
+        }
       }
+      
+      // Fallback to AsyncStorage
+      const savedContacts = await AsyncStorage.getItem(CONTACTS_KEY);
+      if (savedContacts) {
+        const contacts = JSON.parse(savedContacts);
+        setEmergencyContacts(contacts);
+        console.log('📞 Loaded emergency contacts from AsyncStorage:', JSON.stringify(contacts, null, 2));
+      } else {
+        setEmergencyContacts([]);
+        console.log('📭 No emergency contacts found');
+      }
+    } catch (error) {
+      console.error('❌ Error loading emergency contacts:', error);
+      setEmergencyContacts([]);
     }
-    return true;
   };
 
-  const getCurrentLocation = () => {
-    return new Promise((resolve, reject) => {
-      Geolocation.getCurrentPosition(
-        (position) => {
-          const location = {
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-            timestamp: position.timestamp,
-          };
-          setCurrentLocation(location);
-          resolve(location);
-        },
-        (error) => {
-          console.log('Location error:', error);
-          reject(error);
-        },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
-      );
-    });
+  const requestAllPermissions = async () => {
+    if (Platform.OS === 'android') {
+      try {
+        // Request location permission first
+        const { status: locationStatus } = await Location.requestForegroundPermissionsAsync();
+        
+        // Then request other permissions
+        const permissions = await PermissionsAndroid.requestMultiple([
+          PermissionsAndroid.PERMISSIONS.SEND_SMS,
+          PermissionsAndroid.PERMISSIONS.CALL_PHONE,
+        ]);
+
+        console.log('📋 Permissions:', {
+          location: locationStatus === 'granted',
+          sms: permissions['android.permission.SEND_SMS'] === 'granted',
+          call: permissions['android.permission.CALL_PHONE'] === 'granted'
+        });
+
+        return {
+          location: locationStatus === 'granted',
+          sms: permissions['android.permission.SEND_SMS'] === 'granted',
+          call: permissions['android.permission.CALL_PHONE'] === 'granted'
+        };
+      } catch (err) {
+        console.warn('❌ Permission error:', err);
+        return { location: false, sms: false, call: false };
+      }
+    }
+    return { location: true, sms: true, call: true };
+  };
+
+  const getCurrentLocation = async () => {
+    try {
+      console.log('📍 Requesting location...');
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+      
+      const locationData = {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+        accuracy: location.coords.accuracy,
+        timestamp: location.timestamp,
+      };
+      
+      setCurrentLocation(locationData);
+      console.log('📍 Location obtained:', locationData);
+      return locationData;
+    } catch (error) {
+      console.log('❌ Location error:', error);
+      throw error;
+    }
+  };
+
+  const getBatteryLevel = async () => {
+    try {
+      const batteryLevel = await Battery.getBatteryLevelAsync();
+      const batteryState = await Battery.getBatteryStateAsync();
+      const battery = {
+        level: Math.round(batteryLevel * 100),
+        state: batteryState === Battery.BatteryState.CHARGING ? 'Charging' : 
+               batteryState === Battery.BatteryState.FULL ? 'Full' : 'Not Charging'
+      };
+      console.log('🔋 Battery:', battery);
+      return battery;
+    } catch (error) {
+      console.error('❌ Battery error:', error);
+      return { level: 'Unknown', state: 'Unknown' };
+    }
+  };
+
+  const getNetworkInfo = async () => {
+    try {
+      const networkState = await Network.getNetworkStateAsync();
+      const network = {
+        type: networkState.type,
+        isConnected: networkState.isConnected,
+        isInternetReachable: networkState.isInternetReachable
+      };
+      console.log('📶 Network:', network);
+      return network;
+    } catch (error) {
+      console.error('❌ Network error:', error);
+      return { type: 'Unknown', isConnected: false };
+    }
+  };
+
+  const sendSMSToContact = async (phoneNumber, message) => {
+    try {
+      console.log(`📱 Sending SMS to: ${phoneNumber}`);
+      
+      // For Android, we can send to multiple numbers separated by semicolon
+      const url = `sms:${phoneNumber}?body=${encodeURIComponent(message)}`;
+
+      const canOpen = await Linking.canOpenURL(url);
+      console.log(`Can open SMS URL: ${canOpen}`);
+
+      if (canOpen) {
+        await Linking.openURL(url);
+        console.log(`✅ SMS app opened for ${phoneNumber}`);
+        return true;
+      } else {
+        console.log(`❌ Cannot open SMS URL for ${phoneNumber}`);
+        return false;
+      }
+    } catch (error) {
+      console.error(`❌ SMS error for ${phoneNumber}:`, error);
+      return false;
+    }
+  };
+
+  const sendEmergencySMS = async (location, battery, network, emergencyType) => {
+    console.log('📨 Starting SMS send process...');
+    console.log('📞 Emergency contacts to notify:', emergencyContacts.length);
+
+    if (emergencyContacts.length === 0) {
+      Alert.alert('⚠️ No Contacts', 'No emergency contacts found. Add contacts in the Contacts tab.');
+      return { sent: 0, failed: 0 };
+    }
+
+    const message = `🚨 EMERGENCY ALERT from RakshaNet 🚨
+
+Type: ${emergencyType}
+Location: https://maps.google.com/?q=${location.latitude},${location.longitude}
+Coordinates: ${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}
+Battery: ${battery.level}% (${battery.state})
+Network: ${network.type}
+Time: ${new Date().toLocaleString()}
+
+This is an automated emergency alert. Please respond immediately!`;
+
+    console.log('📝 Message prepared');
+
+    try {
+      // Collect all phone numbers
+      const phoneNumbers = emergencyContacts
+        .map(contact => contact.phone || contact.phoneNumber)
+        .filter(phone => phone)
+        .join(';'); // Semicolon for multiple recipients on Android
+
+      console.log(`📱 Sending SMS to ${emergencyContacts.length} contacts: ${phoneNumbers}`);
+
+      if (!phoneNumbers) {
+        Alert.alert('⚠️ Error', 'No valid phone numbers found in contacts');
+        return { sent: 0, failed: emergencyContacts.length };
+      }
+
+      // Open SMS app with all contacts at once
+      const url = `sms:${phoneNumbers}?body=${encodeURIComponent(message)}`;
+      const canOpen = await Linking.canOpenURL(url);
+
+      if (canOpen) {
+        await Linking.openURL(url);
+        console.log(`✅ SMS app opened with ${emergencyContacts.length} recipients`);
+        
+        // Give user time to send the SMS
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        return { sent: emergencyContacts.length, failed: 0 };
+      } else {
+        console.log('❌ Cannot open SMS app');
+        Alert.alert('Error', 'Cannot open SMS app on this device');
+        return { sent: 0, failed: emergencyContacts.length };
+      }
+    } catch (error) {
+      console.error('❌ Error in sendEmergencySMS:', error);
+      return { sent: 0, failed: emergencyContacts.length };
+    }
+  };
+
+  const makeEmergencyCall = async (phoneNumber) => {
+    try {
+      console.log(`📞 Attempting to call: ${phoneNumber}`);
+      
+      const url = `tel:${phoneNumber}`;
+      const canOpen = await Linking.canOpenURL(url);
+      
+      console.log(`Can make call: ${canOpen}`);
+
+      if (canOpen) {
+        await Linking.openURL(url);
+        console.log(`✅ Call initiated to ${phoneNumber}`);
+        return true;
+      } else {
+        console.log(`❌ Cannot make call to ${phoneNumber}`);
+        Alert.alert('Error', 'Cannot make phone calls on this device');
+        return false;
+      }
+    } catch (error) {
+      console.error(`❌ Call error for ${phoneNumber}:`, error);
+      Alert.alert('Call Error', error.message);
+      return false;
+    }
+  };
+
+  const broadcastDistressSignal = (location, battery, network, emergencyType) => {
+    const distressData = {
+      type: emergencyType,
+      message: `${emergencyType} - Immediate assistance required!`,
+      lat: location.latitude,
+      lon: location.longitude,
+      battery: battery.level,
+      batteryState: battery.state,
+      network: network.type,
+      isConnected: network.isConnected,
+      timestamp: new Date().toISOString(),
+      accuracy: location.accuracy
+    };
+
+    console.log('📡 Broadcasting distress signal:', distressData);
+    socket.emit('send_distress', distressData);
   };
 
   const handleSOSClick = async () => {
-    const hasPermission = await requestLocationPermission();
-    if (hasPermission) {
-      setShowModal(true);
-    } else {
-      Alert.alert(
-        'Permission Required',
-        'Location permission is required for emergency alerts'
-      );
+    console.log('🚨 SOS button pressed');
+    const permissions = await requestAllPermissions();
+    
+    console.log('Permissions result:', permissions);
+    
+    if (!permissions.location) {
+      Alert.alert('Permission Required', 'Location permission is required for emergency alerts');
+      return;
     }
+    
+    if (!permissions.call) {
+      Alert.alert('Permission Required', 'Phone call permission is required to call emergency services');
+      return;
+    }
+
+    setShowModal(true);
   };
 
   const handleEmergencySelect = async (emergency) => {
+    console.log('🚨 Emergency selected:', emergency.name);
     setSelectedEmergency(emergency);
     setIsProcessing(true);
 
     try {
+      // Get all emergency data
+      console.log('Step 1: Getting location...');
       const location = await getCurrentLocation();
       
-      const emergencyData = {
-        type: emergency.name,
-        emergencyNumber: emergency.number,
-        location: location,
-        timestamp: new Date().toISOString(),
-      };
+      console.log('Step 2: Getting battery info...');
+      const battery = await getBatteryLevel();
+      
+      console.log('Step 3: Getting network info...');
+      const network = await getNetworkInfo();
 
-      console.log('Emergency Alert Data:', emergencyData);
+      console.log('Step 4: Sending SMS to emergency contacts...');
+      const smsResult = await sendEmergencySMS(location, battery, network, emergency.name);
 
-      // TODO: Integrate with your backend
-      // Import your EmergencyService and call:
-      // await EmergencyService.sendAlert(emergencyData);
+      console.log('Step 5: Broadcasting distress signal...');
+      broadcastDistressSignal(location, battery, network, emergency.name);
 
-      setTimeout(() => {
-        setIsProcessing(false);
-        
-        Alert.alert(
-          'Emergency Alert Sent!',
-          `${emergency.name}\nEmergency Number: ${emergency.number}\n\nYour location and details have been shared with emergency contacts.\n\nWould you like to call emergency services?`,
-          [
-            {
-              text: 'Cancel',
-              style: 'cancel',
-              onPress: () => {
-                setShowModal(false);
-                setSelectedEmergency(null);
-              }
-            },
-            {
-              text: 'Call Now',
-              onPress: () => {
-                Linking.openURL(`tel:${emergency.number}`);
-                setShowModal(false);
-                setSelectedEmergency(null);
-              }
-            }
-          ]
-        );
-      }, 2000);
+      // Close modal
+      setIsProcessing(false);
+      setShowModal(false);
+      setSelectedEmergency(null);
+
+      // Show success message
+      const alertMessage = `${emergency.name}
+
+✅ Location: ${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}
+✅ Battery: ${battery.level}% (${battery.state})
+✅ Network: ${network.type}
+✅ SMS sent to ${smsResult.sent}/${emergencyContacts.length} contacts
+✅ Broadcast sent
+
+Calling ${emergency.number} now...`;
+
+      console.log('Step 6: Showing alert and calling...');
+      console.log(alertMessage);
+
+      Alert.alert('🚨 Emergency Alert Sent!', alertMessage, [
+        {
+          text: 'OK',
+          onPress: () => {
+            console.log('Step 7: Making emergency call...');
+            makeEmergencyCall(emergency.number);
+          }
+        }
+      ]);
 
     } catch (error) {
+      console.error('❌ Emergency alert error:', error);
       setIsProcessing(false);
-      Alert.alert('Error', 'Failed to get location. Please try again.');
-      console.error('Emergency alert error:', error);
+      
+      Alert.alert(
+        'Error',
+        `Failed: ${error.message}\n\nTrying to call ${emergency.number} anyway...`,
+        [{
+          text: 'OK',
+          onPress: () => {
+            makeEmergencyCall(emergency.number);
+            setShowModal(false);
+            setSelectedEmergency(null);
+          }
+        }]
+      );
     }
   };
 
@@ -211,19 +464,20 @@ const SOS = () => {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#F0F4FF" />
-      
-      {/* Back Button */}
-      <TouchableOpacity 
-        style={styles.backButton}
-        onPress={() => navigation.goBack()}
-      >
-        <Text style={styles.backButtonText}>← Back</Text>
-      </TouchableOpacity>
 
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.appName}>RakshaNet</Text>
         <Text style={styles.tagline}>Your Safety Network</Text>
+        {emergencyContacts.length > 0 ? (
+          <Text style={styles.contactCount}>
+            ✅ {emergencyContacts.length} Emergency Contact{emergencyContacts.length !== 1 ? 's' : ''} Ready
+          </Text>
+        ) : (
+          <Text style={styles.contactWarning}>
+            ⚠️ No Emergency Contacts - Add in Contacts tab
+          </Text>
+        )}
       </View>
 
       {/* Main SOS Button */}
@@ -244,7 +498,7 @@ const SOS = () => {
       {/* Info Box */}
       <View style={styles.infoBox}>
         <Text style={styles.infoText}>
-          Press SOS button in case of emergency. Your location and alert will be sent to emergency contacts and authorities.
+          Press SOS button in case of emergency. Your location, battery level, and network info will be sent to emergency contacts. Emergency services will be called.
         </Text>
       </View>
 
@@ -261,7 +515,7 @@ const SOS = () => {
             <View style={styles.modalHeader}>
               <View>
                 <Text style={styles.modalTitle}>Select Emergency Type</Text>
-                <Text style={styles.modalSubtitle}>Choose the type of emergency</Text>
+                <Text style={styles.modalSubtitle}>This will notify contacts and call emergency services</Text>
               </View>
               {!isProcessing && (
                 <TouchableOpacity onPress={closeModal} style={styles.closeButton}>
@@ -292,7 +546,7 @@ const SOS = () => {
                     <Text style={styles.emergencyDescription}>
                       {emergency.description}
                     </Text>
-                    <Text style={styles.emergencyNumber}>📞 {emergency.number}</Text>
+                    <Text style={styles.emergencyNumber}>📞 Will call {emergency.number}</Text>
                   </View>
                   {selectedEmergency?.id === emergency.id && isProcessing && (
                     <Text style={styles.loadingText}>⏳</Text>
@@ -307,8 +561,11 @@ const SOS = () => {
                 <Text style={styles.processingTitle}>⏳ Sending emergency alert...</Text>
                 <View style={styles.processingSteps}>
                   <Text style={styles.processingStep}>📍 Getting your location...</Text>
-                  <Text style={styles.processingStep}>📞 Alerting emergency contacts...</Text>
-                  <Text style={styles.processingStep}>🚨 Notifying authorities...</Text>
+                  <Text style={styles.processingStep}>🔋 Checking battery level...</Text>
+                  <Text style={styles.processingStep}>📶 Checking network status...</Text>
+                  <Text style={styles.processingStep}>📱 Notifying emergency contacts...</Text>
+                  <Text style={styles.processingStep}>📡 Broadcasting to nearby users...</Text>
+                  <Text style={styles.processingStep}>📞 Preparing to call emergency services...</Text>
                 </View>
               </View>
             )}
@@ -317,7 +574,7 @@ const SOS = () => {
             {!isProcessing && (
               <View style={styles.modalFooter}>
                 <Text style={styles.footerText}>
-                  Your location and emergency details will be shared with registered contacts and local authorities immediately.
+                  ⚠️ Warning: Emergency services will be called after sending the alert. Your complete emergency data will be shared with contacts.
                 </Text>
               </View>
             )}
@@ -333,18 +590,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F0F4FF',
   },
-  backButton: {
-    position: 'absolute',
-    top: 40,
-    left: 20,
-    zIndex: 10,
-    padding: 10,
-  },
-  backButtonText: {
-    fontSize: 16,
-    color: '#3B82F6',
-    fontWeight: '600',
-  },
   header: {
     paddingTop: 60,
     paddingBottom: 20,
@@ -359,6 +604,18 @@ const styles = StyleSheet.create({
   tagline: {
     fontSize: 16,
     color: '#6B7280',
+  },
+  contactCount: {
+    fontSize: 12,
+    color: '#10B981',
+    marginTop: 8,
+    fontWeight: '600',
+  },
+  contactWarning: {
+    fontSize: 12,
+    color: '#EF4444',
+    marginTop: 8,
+    fontWeight: '600',
   },
   sosContainer: {
     flex: 1,
@@ -542,4 +799,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default SOS;
+export default Home;

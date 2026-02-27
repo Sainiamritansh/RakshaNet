@@ -9,9 +9,11 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Linking,
+  ScrollView,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const CONTACTS_KEY = '@emergency_contacts';
 
@@ -19,63 +21,121 @@ const EmergencyContacts = () => {
   const [contacts, setContacts] = useState([]);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [relationship, setRelationship] = useState('');
+  const [editingId, setEditingId] = useState(null);
 
   useEffect(() => {
     loadContacts();
+    
+    // Also reload when app comes to foreground
+    const interval = setInterval(() => {
+      loadContacts();
+    }, 2000); // Check every 2 seconds
+    
+    return () => clearInterval(interval);
   }, []);
 
   const loadContacts = async () => {
     try {
+      console.log('📥 Loading contacts from AsyncStorage...');
       const savedContacts = await AsyncStorage.getItem(CONTACTS_KEY);
-      if (savedContacts) {
-        setContacts(JSON.parse(savedContacts));
+      console.log('📥 Raw data:', savedContacts);
+      
+      if (savedContacts !== null) {
+        const parsed = JSON.parse(savedContacts);
+        setContacts(parsed);
+        console.log('✅ Loaded contacts:', parsed.length, 'contacts');
+        console.log('📋 Contact details:', JSON.stringify(parsed, null, 2));
+      } else {
+        console.log('📭 No saved contacts found');
+        setContacts([]);
       }
     } catch (error) {
-      console.error('Failed to load contacts:', error);
+      console.error('❌ Failed to load contacts:', error);
+      Alert.alert('Error', 'Failed to load contacts: ' + error.message);
+      setContacts([]);
     }
   };
 
   const saveContacts = async (newContacts) => {
     try {
-      await AsyncStorage.setItem(CONTACTS_KEY, JSON.stringify(newContacts));
+      const jsonValue = JSON.stringify(newContacts);
+      await AsyncStorage.setItem(CONTACTS_KEY, jsonValue);
       setContacts(newContacts);
+      console.log('✅ Saved contacts:', newContacts.length, 'Data:', jsonValue);
+      
+      // Verify save
+      const verification = await AsyncStorage.getItem(CONTACTS_KEY);
+      console.log('✅ Verified save:', verification ? 'Success' : 'Failed');
     } catch (error) {
-      console.error('Failed to save contacts:', error);
-      Alert.alert('Error', 'Failed to save contact');
+      console.error('❌ Failed to save contacts:', error);
+      Alert.alert('Error', 'Failed to save contact: ' + error.message);
     }
   };
 
-  const addContact = () => {
+  const addOrUpdateContact = () => {
     if (!name.trim() || !phone.trim()) {
-      Alert.alert('Error', 'Please enter both name and phone number');
+      Alert.alert('Error', 'Please enter name and phone number');
       return;
     }
 
-    // Basic phone validation
-    const phoneRegex = /^[0-9]{10,15}$/;
-    if (!phoneRegex.test(phone.replace(/[\s-]/g, ''))) {
-      Alert.alert('Error', 'Please enter a valid phone number');
+    // Clean and validate phone
+    const cleanPhone = phone.replace(/[\s\-\(\)]/g, '');
+    if (cleanPhone.length < 10) {
+      Alert.alert('Error', 'Please enter a valid phone number (at least 10 digits)');
       return;
     }
 
-    const newContact = {
-      id: Date.now().toString(),
-      name: name.trim(),
-      phone: phone.trim(),
-    };
+    if (editingId) {
+      // Update existing contact
+      const updatedContacts = contacts.map(c => 
+        c.id === editingId 
+          ? { ...c, name: name.trim(), phone: cleanPhone, phoneNumber: cleanPhone, relationship: relationship.trim() }
+          : c
+      );
+      saveContacts(updatedContacts);
+      Alert.alert('✅ Updated', `${name} has been updated`);
+      setEditingId(null);
+    } else {
+      // Add new contact
+      const newContact = {
+        id: Date.now().toString(),
+        name: name.trim(),
+        phone: cleanPhone,
+        phoneNumber: cleanPhone,
+        relationship: relationship.trim() || 'Emergency Contact',
+        addedAt: new Date().toISOString(),
+      };
 
-    const updatedContacts = [...contacts, newContact];
-    saveContacts(updatedContacts);
+      const updatedContacts = [...contacts, newContact];
+      saveContacts(updatedContacts);
+      Alert.alert('✅ Added', `${newContact.name} added successfully!`);
+    }
     
+    // Clear form
     setName('');
     setPhone('');
-    Alert.alert('Success', 'Emergency contact added');
+    setRelationship('');
   };
 
-  const deleteContact = (id) => {
+  const editContact = (contact) => {
+    setName(contact.name);
+    setPhone(contact.phone || contact.phoneNumber);
+    setRelationship(contact.relationship || '');
+    setEditingId(contact.id);
+  };
+
+  const cancelEdit = () => {
+    setName('');
+    setPhone('');
+    setRelationship('');
+    setEditingId(null);
+  };
+
+  const deleteContact = (id, contactName) => {
     Alert.alert(
       'Delete Contact',
-      'Are you sure you want to delete this contact?',
+      `Are you sure you want to delete ${contactName}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -84,29 +144,131 @@ const EmergencyContacts = () => {
           onPress: () => {
             const updatedContacts = contacts.filter(c => c.id !== id);
             saveContacts(updatedContacts);
+            Alert.alert('Deleted', `${contactName} removed`);
           },
         },
       ]
     );
   };
 
-  const renderContact = ({ item }) => (
+  const callContact = (phoneNumber, contactName) => {
+    Alert.alert(
+      'Call Contact',
+      `Call ${contactName}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Call',
+          onPress: () => Linking.openURL(`tel:${phoneNumber}`)
+        }
+      ]
+    );
+  };
+
+  const sendSMS = (phoneNumber, contactName) => {
+    Alert.alert(
+      'Send SMS',
+      `Send message to ${contactName}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Send',
+          onPress: () => Linking.openURL(`sms:${phoneNumber}`)
+        }
+      ]
+    );
+  };
+
+  const exportContacts = async () => {
+    try {
+      const contactsText = contacts.map(c => 
+        `${c.name} - ${c.phone} (${c.relationship || 'N/A'})`
+      ).join('\n');
+      
+      Alert.alert(
+        'Emergency Contacts',
+        contactsText || 'No contacts to export',
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      console.error('Export error:', error);
+    }
+  };
+
+  const clearAllContacts = () => {
+    Alert.alert(
+      'Clear All Contacts',
+      'Are you sure you want to delete ALL emergency contacts? This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear All',
+          style: 'destructive',
+          onPress: async () => {
+            await AsyncStorage.removeItem(CONTACTS_KEY);
+            setContacts([]);
+            Alert.alert('Cleared', 'All contacts have been removed');
+          }
+        }
+      ]
+    );
+  };
+
+  const renderContact = ({ item, index }) => (
     <View style={styles.contactCard}>
-      <View style={styles.contactInfo}>
-        <Ionicons name="person-circle" size={40} color="#4a90e2" />
-        <View style={styles.contactDetails}>
-          <Text style={styles.contactName}>{item.name}</Text>
-          <Text style={styles.contactPhone}>{item.phone}</Text>
+      <View style={styles.contactHeader}>
+        <View style={styles.contactInfo}>
+          <View style={[styles.iconCircle, { backgroundColor: getColorByIndex(index) }]}>
+            <Text style={styles.iconText}>{item.name.charAt(0).toUpperCase()}</Text>
+          </View>
+          <View style={styles.contactDetails}>
+            <Text style={styles.contactName}>{item.name}</Text>
+            <Text style={styles.contactPhone}>{item.phone}</Text>
+            {item.relationship && (
+              <Text style={styles.contactRelationship}>
+                <Ionicons name="heart" size={12} color="#ff6b6b" /> {item.relationship}
+              </Text>
+            )}
+          </View>
         </View>
       </View>
-      <TouchableOpacity
-        onPress={() => deleteContact(item.id)}
-        style={styles.deleteButton}
-      >
-        <Ionicons name="trash" size={24} color="#ff3b30" />
-      </TouchableOpacity>
+      
+      <View style={styles.contactActions}>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => callContact(item.phone, item.name)}
+        >
+          <Ionicons name="call" size={20} color="#4a90e2" />
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => sendSMS(item.phone, item.name)}
+        >
+          <Ionicons name="chatbubble" size={20} color="#10b981" />
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => editContact(item)}
+        >
+          <Ionicons name="create" size={20} color="#f59e0b" />
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => deleteContact(item.id, item.name)}
+        >
+          <Ionicons name="trash" size={20} color="#ef4444" />
+        </TouchableOpacity>
+      </View>
     </View>
   );
+
+  const getColorByIndex = (index) => {
+    const colors = ['#4a90e2', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+    return colors[index % colors.length];
+  };
 
   return (
     <KeyboardAvoidingView
@@ -114,60 +276,136 @@ const EmergencyContacts = () => {
       style={styles.container}
     >
       <View style={styles.header}>
-        <Text style={styles.title}>Emergency Contacts</Text>
+        <Text style={styles.title}>🚨 Emergency Contacts</Text>
         <Text style={styles.subtitle}>
-          Add contacts who will receive your SOS alert
+          Contacts will receive SMS alerts during emergencies
         </Text>
-      </View>
-
-      <View style={styles.inputContainer}>
-        <View style={styles.inputWrapper}>
-          <Ionicons name="person" size={20} color="#666" style={styles.inputIcon} />
-          <TextInput
-            style={styles.input}
-            placeholder="Contact Name"
-            value={name}
-            onChangeText={setName}
-            placeholderTextColor="#999"
-          />
-        </View>
-
-        <View style={styles.inputWrapper}>
-          <Ionicons name="call" size={20} color="#666" style={styles.inputIcon} />
-          <TextInput
-            style={styles.input}
-            placeholder="Phone Number"
-            value={phone}
-            onChangeText={setPhone}
-            keyboardType="phone-pad"
-            placeholderTextColor="#999"
-          />
-        </View>
-
-        <TouchableOpacity style={styles.addButton} onPress={addContact}>
-          <Ionicons name="add-circle" size={24} color="#fff" />
-          <Text style={styles.addButtonText}>Add Contact</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.listContainer}>
-        {contacts.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Ionicons name="people-outline" size={80} color="#ccc" />
-            <Text style={styles.emptyText}>No emergency contacts yet</Text>
-            <Text style={styles.emptySubtext}>
-              Add contacts who should receive your SOS alerts
-            </Text>
+        
+        <View style={styles.statsContainer}>
+          <View style={styles.statBox}>
+            <Text style={styles.statNumber}>{contacts.length}</Text>
+            <Text style={styles.statLabel}>Contacts</Text>
           </View>
-        ) : (
-          <FlatList
-            data={contacts}
-            renderItem={renderContact}
-            keyExtractor={item => item.id}
-            contentContainerStyle={styles.list}
-          />
-        )}
+          
+          {contacts.length > 0 && (
+            <>
+              <TouchableOpacity 
+                style={styles.statBox}
+                onPress={exportContacts}
+              >
+                <Ionicons name="document-text" size={24} color="#4a90e2" />
+                <Text style={styles.statLabel}>View All</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.statBox}
+                onPress={clearAllContacts}
+              >
+                <Ionicons name="trash" size={24} color="#ef4444" />
+                <Text style={styles.statLabel}>Clear All</Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
       </View>
+
+      <ScrollView style={styles.formContainer}>
+        <View style={styles.inputContainer}>
+          <Text style={styles.formTitle}>
+            {editingId ? '✏️ Edit Contact' : '➕ Add New Contact'}
+          </Text>
+          
+          <View style={styles.inputWrapper}>
+            <Ionicons name="person-outline" size={20} color="#666" style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Contact Name *"
+              value={name}
+              onChangeText={setName}
+              placeholderTextColor="#999"
+            />
+          </View>
+
+          <View style={styles.inputWrapper}>
+            <Ionicons name="call-outline" size={20} color="#666" style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Phone Number *"
+              value={phone}
+              onChangeText={setPhone}
+              keyboardType="phone-pad"
+              placeholderTextColor="#999"
+            />
+          </View>
+
+          <View style={styles.inputWrapper}>
+            <Ionicons name="heart-outline" size={20} color="#666" style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Relationship (optional)"
+              value={relationship}
+              onChangeText={setRelationship}
+              placeholderTextColor="#999"
+            />
+          </View>
+
+          <View style={styles.buttonRow}>
+            {editingId && (
+              <TouchableOpacity 
+                style={[styles.button, styles.cancelButton]} 
+                onPress={cancelEdit}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+            )}
+            
+            <TouchableOpacity 
+              style={[styles.button, styles.addButton, editingId && styles.updateButton]} 
+              onPress={addOrUpdateContact}
+            >
+              <Ionicons 
+                name={editingId ? "checkmark-circle-outline" : "add-circle-outline"} 
+                size={24} 
+                color="#fff" 
+              />
+              <Text style={styles.addButtonText}>
+                {editingId ? 'Update Contact' : 'Add Contact'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={styles.listContainer}>
+          {contacts.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="people-outline" size={80} color="#ccc" />
+              <Text style={styles.emptyText}>No emergency contacts yet</Text>
+              <Text style={styles.emptySubtext}>
+                Add your first contact to get started
+              </Text>
+            </View>
+          ) : (
+            <>
+              <View style={styles.listHeader}>
+                <Text style={styles.listTitle}>
+                  📋 Your Contacts ({contacts.length})
+                </Text>
+                <TouchableOpacity onPress={loadContacts}>
+                  <Ionicons name="refresh-outline" size={24} color="#4a90e2" />
+                </TouchableOpacity>
+              </View>
+              
+              <FlatList
+                data={contacts}
+                renderItem={renderContact}
+                keyExtractor={item => item.id}
+                contentContainerStyle={styles.list}
+                scrollEnabled={false}
+              />
+            </>
+          )}
+        </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 };
@@ -181,6 +419,7 @@ const styles = StyleSheet.create({
   },
   header: {
     padding: 20,
+    paddingTop: 60,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
@@ -189,23 +428,57 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 5,
+    marginBottom: 8,
   },
   subtitle: {
     fontSize: 14,
     color: '#666',
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: 12,
+  },
+  statBox: {
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: '#f8f8f8',
+    borderRadius: 12,
+    minWidth: 80,
+  },
+  statNumber: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#4a90e2',
+  },
+  statLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
+  },
+  formContainer: {
+    flex: 1,
   },
   inputContainer: {
     padding: 20,
     backgroundColor: '#fff',
-    marginTop: 10,
+    marginTop: 2,
+    marginBottom: 2,
+  },
+  formTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 16,
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#f8f8f8',
-    borderRadius: 10,
-    marginBottom: 15,
+    borderRadius: 12,
+    marginBottom: 12,
     paddingHorizontal: 15,
     borderWidth: 1,
     borderColor: '#e0e0e0',
@@ -219,14 +492,27 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
   },
-  addButton: {
+  buttonRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 8,
+  },
+  button: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: 12,
+    padding: 16,
+  },
+  addButton: {
     backgroundColor: '#4a90e2',
-    borderRadius: 10,
-    padding: 15,
-    marginTop: 10,
+  },
+  updateButton: {
+    backgroundColor: '#10b981',
+  },
+  cancelButton: {
+    backgroundColor: '#e0e0e0',
   },
   addButtonText: {
     color: '#fff',
@@ -234,31 +520,56 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginLeft: 8,
   },
+  cancelButtonText: {
+    color: '#666',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
   listContainer: {
     flex: 1,
-    marginTop: 10,
-  },
-  list: {
+    backgroundColor: '#fff',
     padding: 20,
   },
-  contactCard: {
+  listHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 15,
-    marginBottom: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  listTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  list: {
+    paddingBottom: 20,
+  },
+  contactCard: {
+    backgroundColor: '#f8f8f8',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  contactHeader: {
+    marginBottom: 12,
   },
   contactInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
+  },
+  iconCircle: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  iconText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#fff',
   },
   contactDetails: {
     marginLeft: 15,
@@ -273,9 +584,27 @@ const styles = StyleSheet.create({
   contactPhone: {
     fontSize: 14,
     color: '#666',
+    marginBottom: 4,
   },
-  deleteButton: {
+  contactRelationship: {
+    fontSize: 12,
+    color: '#999',
+    fontStyle: 'italic',
+  },
+  contactActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+  },
+  actionButton: {
     padding: 10,
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 60,
   },
   emptyState: {
     flex: 1,
