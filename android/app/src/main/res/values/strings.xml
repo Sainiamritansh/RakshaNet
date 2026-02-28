@@ -3,4 +3,5 @@
   <string name="expo_splash_screen_resize_mode" translatable="false">contain</string>
   <string name="expo_splash_screen_status_bar_translucent" translatable="false">false</string>
   <string name="expo_runtime_version">1.0.0</string>
+  <string name="accessibility_service_description">Raksha Net uses this to detect Volume Up x3 for emergency SOS even when screen is off.</string>
 </resources>

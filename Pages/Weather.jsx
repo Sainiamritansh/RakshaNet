@@ -1,6 +1,6 @@
-import { View, Text, StyleSheet, Image } from 'react-native';
+import { View, Text, StyleSheet, Image, StatusBar } from 'react-native';
 import React, { useEffect, useContext } from 'react';
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { MarkersContext } from '../context/MarkersContext';
 
 const Weather = () => {
@@ -17,90 +17,232 @@ const Weather = () => {
   }, [location]);
 
   return (
-    <SafeAreaProvider>
-      <SafeAreaView style={s.container}>
-        <View style={s.content}>
-          {weather && (
-            <>
-              <Text style={s.title}>Weather Update 🌤</Text>
-              <Text style={s.location}>📍 {weather.name}</Text>
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#F5F6FA" />
 
-              <Image
-                style={s.icon}
-                source={{ uri: `http://openweathermap.org/img/wn/${weather.weather[0].icon}@2x.png` }}
-              />
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerLabel}>Weather</Text>
+        <Text style={styles.headerTitle}>Current Conditions</Text>
+      </View>
 
-              <Text style={s.temp}>{weather.main.temp}°C</Text>
-              <Text style={s.feelsLike}>Feels Like {weather.main.feels_like}°C</Text>
+      {weather ? (
+        <View style={styles.content}>
+          {/* Main Weather Card */}
+          <View style={styles.mainCard}>
+            <View style={styles.locationRow}>
+              <Ionicons name="location" size={18} color="#E53935" />
+              <Text style={styles.locationName}>{weather.name}</Text>
+            </View>
 
-              <View style={s.weatherDetails}>
-                <Text style={s.detailText}>🌫 Humidity: {weather.main.humidity}%</Text>
-                <Text style={s.detailText}>🌀 Wind: {weather.wind.speed} m/s</Text>
-                <Text style={s.detailText}>🔻 Pressure: {weather.main.pressure} hPa</Text>
-                <Text style={s.detailText}>🌥 {weather.weather[0].description}</Text>
+            <Image
+              style={styles.icon}
+              source={{ uri: `http://openweathermap.org/img/wn/${weather.weather[0].icon}@4x.png` }}
+            />
+
+            <Text style={styles.temp}>{Math.round(weather.main.temp)}°</Text>
+            <Text style={styles.feelsLike}>Feels like {Math.round(weather.main.feels_like)}°C</Text>
+            <View style={styles.descriptionBadge}>
+              <Text style={styles.descriptionText}>
+                {weather.weather[0].description}
+              </Text>
+            </View>
+          </View>
+
+          {/* Details Grid */}
+          <View style={styles.detailsGrid}>
+            <View style={styles.detailItem}>
+              <View style={[styles.detailIconBg, { backgroundColor: '#E3F2FD' }]}>
+                <Ionicons name="water" size={22} color="#1E88E5" />
               </View>
-            </>
-          )}
+              <Text style={styles.detailValue}>{weather.main.humidity}%</Text>
+              <Text style={styles.detailLabel}>Humidity</Text>
+            </View>
+
+            <View style={styles.detailItem}>
+              <View style={[styles.detailIconBg, { backgroundColor: '#E8F5E9' }]}>
+                <Ionicons name="leaf" size={22} color="#43A047" />
+              </View>
+              <Text style={styles.detailValue}>{weather.wind.speed} m/s</Text>
+              <Text style={styles.detailLabel}>Wind</Text>
+            </View>
+
+            <View style={styles.detailItem}>
+              <View style={[styles.detailIconBg, { backgroundColor: '#FFF3E0' }]}>
+                <Ionicons name="speedometer" size={22} color="#FB8C00" />
+              </View>
+              <Text style={styles.detailValue}>{weather.main.pressure}</Text>
+              <Text style={styles.detailLabel}>Pressure</Text>
+            </View>
+          </View>
+
+          {/* Safety Tip */}
+          <View style={styles.tipCard}>
+            <Ionicons name="shield-checkmark" size={20} color="#E53935" />
+            <Text style={styles.tipText}>
+              Weather data helps RakshaNet provide better emergency assistance in your area.
+            </Text>
+          </View>
         </View>
-      </SafeAreaView>
-    </SafeAreaProvider>
+      ) : (
+        <View style={styles.loadingContainer}>
+          <View style={styles.loadingPulse}>
+            <Ionicons name="cloudy" size={40} color="#E53935" />
+          </View>
+          <Text style={styles.loadingText}>Loading weather data...</Text>
+        </View>
+      )}
+    </View>
   );
 };
 
 export default Weather;
 
-const s = StyleSheet.create({
+const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 20,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: '#F5F6FA',
+  },
+  header: {
+    paddingTop: 55,
+    paddingBottom: 16,
+    paddingHorizontal: 24,
+  },
+  headerLabel: {
+    fontSize: 13,
+    color: '#E53935',
+    fontWeight: '700',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#1A1A2E',
+    marginTop: 2,
   },
   content: {
     flex: 1,
-    backgroundColor: 'rgba(215, 210, 210, 0.97)',
-    borderRadius: 20,
-    padding: 20,
-    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  mainCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 28,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 3,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 10,
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
   },
-  location: {
-    fontSize: 20,
-    color: '#333',
-    fontWeight: '600',
-    marginBottom: 10,
+  locationName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1A1A2E',
   },
   icon: {
     width: 120,
     height: 120,
-    marginVertical: 10,
   },
   temp: {
-    fontSize: 50,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: 64,
+    fontWeight: '800',
+    color: '#1A1A2E',
+    marginTop: -8,
   },
   feelsLike: {
-    fontSize: 18,
-    color: '#333',
+    fontSize: 15,
+    color: '#9E9E9E',
+    fontWeight: '500',
+  },
+  descriptionBadge: {
+    backgroundColor: '#F5F6FA',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginTop: 12,
+  },
+  descriptionText: {
+    fontSize: 14,
+    color: '#616161',
+    fontWeight: '600',
+    textTransform: 'capitalize',
+  },
+  detailsGrid: {
+    flexDirection: 'row',
+    marginTop: 16,
+    gap: 12,
+  },
+  detailItem: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 18,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  detailIconBg: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 10,
   },
-  weatherDetails: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    padding: 15,
-    borderRadius: 15,
-    marginTop: 10,
-    alignItems: 'center',
-    width: '90%',
+  detailValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1A1A2E',
   },
-  detailText: {
+  detailLabel: {
+    fontSize: 12,
+    color: '#9E9E9E',
+    fontWeight: '500',
+    marginTop: 4,
+  },
+  tipCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFEBEE',
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 16,
+    gap: 12,
+  },
+  tipText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#616161',
+    lineHeight: 19,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingPulse: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#FFEBEE',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  loadingText: {
     fontSize: 16,
-    color: '#333',
-    marginVertical: 3,
+    color: '#616161',
+    fontWeight: '600',
   },
 });
