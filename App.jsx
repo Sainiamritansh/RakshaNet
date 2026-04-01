@@ -1,13 +1,19 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
-import { checkSOSIntent } from "./services/SOSBackgroundService";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { NavigationContainer, useNavigation } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
+import { COLORS, SHADOWS } from "./src/theme";
 import { Audio } from "expo-av";
 import { setNotificationHandler } from "expo-notifications";
-import { requestNotificationPermissions, showNotification } from "./services/Notification";
-import { requestForegroundPermissionsAsync, getCurrentPositionAsync } from "expo-location";
+import {
+  requestNotificationPermissions,
+  showNotification,
+} from "./services/Notification";
+import {
+  requestForegroundPermissionsAsync,
+  getCurrentPositionAsync,
+} from "expo-location";
 import socket from "./services/socket";
 import Home from "./Pages/Home";
 import Location from "./Pages/Location";
@@ -22,6 +28,9 @@ import { startMonitoring, isShieldActive } from "./services/SMSMonitor";
 import audio from "./assets/eas.mp3";
 import { MarkersProvider } from "./context/MarkersContext";
 import { auth, db } from "./services/firebase";
+import { checkSOSIntent, syncContactsToNative, openAccessibilitySettings, isSOSServiceEnabled } from "./services/SOSBackgroundService";
+import { useSOSSirenReceiver } from "./services/SOSSirenReceiver";
+import { registerDeviceForSiren } from "./services/SOSSirenService";
 
 console.log("Firebase Auth:", auth);
 console.log("Firestore DB:", db);
@@ -45,7 +54,7 @@ function MainTabs({ location }) {
   useVolumeShortcut(
     useCallback(() => {
       navigation.navigate("SOS");
-    }, [navigation])
+    }, [navigation]),
   );
 
   return (
@@ -54,32 +63,36 @@ function MainTabs({ location }) {
         headerShown: false,
         tabBarIcon: ({ focused, color, size }) => {
           let iconName;
-          if (route.name === "Home") iconName = focused ? "shield-checkmark" : "shield-checkmark-outline";
-          else if (route.name === "Location") iconName = focused ? "navigate" : "navigate-outline";
-          else if (route.name === "Info") iconName = focused ? "cloudy" : "cloudy-outline";
-          else if (route.name === "Contacts") iconName = focused ? "people" : "people-outline";
-          else if (route.name === "Scanner") iconName = focused ? "search-circle" : "search-circle-outline";
-          else if (route.name === "Shield") iconName = focused ? "shield" : "shield-half-outline";
+          if (route.name === "Home")
+            iconName = focused
+              ? "shield-checkmark"
+              : "shield-checkmark-outline";
+          else if (route.name === "Location")
+            iconName = focused ? "navigate" : "navigate-outline";
+          else if (route.name === "Info")
+            iconName = focused ? "cloudy" : "cloudy-outline";
+          else if (route.name === "Contacts")
+            iconName = focused ? "people" : "people-outline";
+          else if (route.name === "Scanner")
+            iconName = focused ? "search-circle" : "search-circle-outline";
+          else if (route.name === "Shield")
+            iconName = focused ? "shield" : "shield-half-outline";
 
           return <Ionicons name={iconName} size={size} color={color} />;
         },
-        tabBarActiveTintColor: "#E53935",
-        tabBarInactiveTintColor: "#9E9E9E",
+        tabBarActiveTintColor: COLORS.primary,
+        tabBarInactiveTintColor: COLORS.textMuted,
         tabBarStyle: {
-          backgroundColor: '#FFFFFF',
+          backgroundColor: COLORS.bgLight,
           borderTopWidth: 0,
-          elevation: 12,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: -3 },
-          shadowOpacity: 0.08,
-          shadowRadius: 8,
+          ...SHADOWS.tabBar,
           height: 65,
           paddingBottom: 8,
           paddingTop: 8,
         },
         tabBarLabelStyle: {
           fontSize: 11,
-          fontWeight: '600',
+          fontWeight: "600",
         },
       })}
     >
@@ -110,12 +123,13 @@ export default function App() {
   const soundRef = useRef(null);
   const navigationRef = useRef(null);
   const [sosTriggered, setSOSTriggered] = useState(false);
+  useSOSSirenReceiver(); // ✅ Listen for incoming SOS sirens and activate alert
 
   useEffect(() => {
     // Check if launched via background SOS shortcut
     checkSOSIntent().then((triggered) => {
       if (triggered) {
-        console.log('🚨 App launched via SOS shortcut!');
+        console.log("🚨 App launched via SOS shortcut!");
         setSOSTriggered(true);
       }
     });
@@ -123,11 +137,14 @@ export default function App() {
     getCoord();
     requestNotificationPermissions();
 
+    // 🚨 Register this device so it can receive SOS sirens
+    registerDeviceForSiren("this_user_phone"); // replace with actual logged-in user phone
+
     // Auto-start SMS Shield if previously active
     isShieldActive().then((active) => {
       if (active) {
         startMonitoring((record) => {
-          console.log('Spam detected:', record.sender);
+          console.log("Spam detected:", record.sender);
         });
       }
     });
@@ -175,7 +192,7 @@ export default function App() {
         onReady={() => {
           // If SOS was triggered from background, navigate to SOS screen
           if (sosTriggered) {
-            navigationRef.current?.navigate('SOS');
+            navigationRef.current?.navigate("SOS");
             setSOSTriggered(false);
           }
         }}
@@ -196,7 +213,7 @@ export default function App() {
           <Stack.Screen
             name="Splash"
             component={SplashScreen}
-            options={{ animation: 'fade' }}
+            options={{ animation: "fade" }}
           />
           <Stack.Screen name="Main">
             {() => <MainTabs location={location} />}

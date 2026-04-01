@@ -7,6 +7,8 @@ import {
   StatusBar,
   Dimensions,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { COLORS, TYPOGRAPHY, RADIUS } from '../src/theme';
 
 const { width } = Dimensions.get('window');
 
@@ -14,6 +16,7 @@ export default function SplashScreen({ navigation }) {
   const logoScale = useRef(new Animated.Value(0.3)).current;
   const logoOpacity = useRef(new Animated.Value(0)).current;
   const textOpacity = useRef(new Animated.Value(0)).current;
+  const barWidth = useRef(new Animated.Value(0)).current;
   const screenOpacity = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -41,6 +44,15 @@ export default function SplashScreen({ navigation }) {
       }).start();
     }, 400);
 
+    // Animate loading bar
+    setTimeout(() => {
+      Animated.timing(barWidth, {
+        toValue: 1,
+        duration: 1500,
+        useNativeDriver: false,
+      }).start();
+    }, 600);
+
     // Navigate after delay
     setTimeout(() => {
       Animated.timing(screenOpacity, {
@@ -55,30 +67,51 @@ export default function SplashScreen({ navigation }) {
 
   return (
     <Animated.View style={[styles.container, { opacity: screenOpacity }]}>
-      <StatusBar barStyle="light-content" backgroundColor="#E53935" />
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.bgDark} />
 
-      {/* Logo */}
-      <Animated.View
-        style={[
-          styles.logoContainer,
-          {
-            transform: [{ scale: logoScale }],
-            opacity: logoOpacity,
-          },
-        ]}
-      >
-        <View style={styles.shieldOuter}>
-          <View style={styles.shieldInner}>
-            <Text style={styles.shieldIcon}>🛡️</Text>
+      {/* Top spacer */}
+      <View style={styles.spacer} />
+
+      {/* Logo Section */}
+      <View style={styles.centerContent}>
+        <Animated.View
+          style={[
+            styles.logoContainer,
+            {
+              transform: [{ scale: logoScale }],
+              opacity: logoOpacity,
+            },
+          ]}
+        >
+          <View style={styles.shieldOuter}>
+            <View style={styles.shieldInner}>
+              <Ionicons name="shield" size={52} color={COLORS.textPrimary} />
+            </View>
           </View>
-        </View>
-      </Animated.View>
+        </Animated.View>
 
-      {/* App Name */}
-      <Animated.View style={{ opacity: textOpacity }}>
-        <Text style={styles.appName}>RakshaNet</Text>
-        <Text style={styles.tagline}>Your Safety Network</Text>
-      </Animated.View>
+        {/* App Name */}
+        <Animated.View style={[styles.textContainer, { opacity: textOpacity }]}>
+          <Text style={styles.appName}>RakshaNet</Text>
+        </Animated.View>
+      </View>
+
+      {/* Bottom loading bar */}
+      <View style={styles.bottomSection}>
+        <View style={styles.loadingBarTrack}>
+          <Animated.View
+            style={[
+              styles.loadingBarFill,
+              {
+                width: barWidth.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: ['0%', '100%'],
+                }),
+              },
+            ]}
+          />
+        </View>
+      </View>
     </Animated.View>
   );
 }
@@ -86,45 +119,60 @@ export default function SplashScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#E53935',
-    justifyContent: 'center',
+    backgroundColor: COLORS.bgDark,
+    justifyContent: 'space-between',
     alignItems: 'center',
   },
+  spacer: {
+    height: 80,
+  },
+  centerContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   logoContainer: {
-    marginBottom: 30,
+    marginBottom: 32,
   },
   shieldOuter: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: 'rgba(229, 57, 53, 0.12)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   shieldInner: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  shieldIcon: {
-    fontSize: 48,
+  textContainer: {
+    alignItems: 'center',
   },
   appName: {
+    ...TYPOGRAPHY.h1,
     fontSize: 36,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    color: COLORS.textPrimary,
     textAlign: 'center',
     letterSpacing: 1,
   },
-  tagline: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
-    textAlign: 'center',
-    marginTop: 8,
-    letterSpacing: 2,
-    textTransform: 'uppercase',
+  bottomSection: {
+    width: '100%',
+    paddingHorizontal: 60,
+    paddingBottom: 80,
+  },
+  loadingBarTrack: {
+    height: 3,
+    backgroundColor: 'rgba(229, 57, 53, 0.2)',
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  loadingBarFill: {
+    height: '100%',
+    backgroundColor: COLORS.primary,
+    borderRadius: 2,
   },
 });

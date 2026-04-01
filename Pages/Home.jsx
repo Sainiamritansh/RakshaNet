@@ -14,6 +14,7 @@ import {
   StatusBar,
   Dimensions,
 } from "react-native";
+import { triggerSOSSiren } from "../services/SOSSirenService";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Battery from "expo-battery";
@@ -23,7 +24,12 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import socket from "../services/socket";
 import { db } from "../services/firebase";
 import { collection, getDocs } from "firebase/firestore";
-import { syncContactsToNative, openAccessibilitySettings, isSOSServiceEnabled } from "../services/SOSBackgroundService";
+import {
+  syncContactsToNative,
+  openAccessibilitySettings,
+  isSOSServiceEnabled,
+} from "../services/SOSBackgroundService";
+import { COLORS, TYPOGRAPHY, RADIUS, SPACING, SHADOWS } from "../src/theme";
 
 const { width } = Dimensions.get("window");
 const CONTACTS_KEY = "@emergency_contacts";
@@ -37,69 +43,77 @@ const Home = () => {
   const [emergencyContacts, setEmergencyContacts] = useState([]);
   const [locationShared, setLocationShared] = useState(false);
   const [sosServiceEnabled, setSOSServiceEnabled] = useState(false);
+  const [showMoreTypes, setShowMoreTypes] = useState(false);
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const ringScale = useRef(new Animated.Value(0.8)).current;
   const ringOpacity = useRef(new Animated.Value(0.6)).current;
 
-  const emergencyTypes = [
+  // Core 4 emergency types (shown prominently)
+  const coreEmergencyTypes = [
     {
       id: 1,
-      name: "Medical Emergency",
+      name: "Medical",
       icon: "medkit",
-      color: "#EF4444",
+      color: COLORS.primary,
       number: "108",
-      description: "Ambulance & Medical Help",
+      description: "Ambulance, injuries, and medical help",
     },
     {
       id: 2,
-      name: "Police Threat",
+      name: "Police",
       icon: "shield",
-      color: "#3B82F6",
+      color: COLORS.primary,
       number: "100",
-      description: "Police Emergency",
+      description: "Safety threats, suspicious activity",
     },
     {
       id: 3,
-      name: "Fire Emergency",
+      name: "Fire",
       icon: "flame",
-      color: "#F97316",
+      color: COLORS.primary,
       number: "101",
-      description: "Fire Department",
+      description: "Fire hazards, gas leaks, chemical spills",
     },
     {
       id: 4,
-      name: "Natural Disaster",
+      name: "Disaster",
       icon: "thunderstorm",
-      color: "#A855F7",
+      color: COLORS.primary,
       number: "112",
-      description: "Disaster Management",
+      description: "Floods, earthquakes or large-scale emergencies",
     },
+  ];
+
+  // Additional types (collapsible)
+  const extraEmergencyTypes = [
     {
       id: 5,
-      name: "Road Accident Help",
+      name: "Road Accident",
       icon: "car",
-      color: "#EAB308",
+      color: COLORS.primary,
       number: "108",
       description: "Accident Emergency",
     },
     {
       id: 6,
-      name: "Cyber SOS/Fraud SOS",
+      name: "Cyber SOS",
       icon: "phone-portrait",
-      color: "#14B8A6",
+      color: COLORS.primary,
       number: "1930",
       description: "Cyber Crime Helpline",
     },
     {
       id: 7,
-      name: "Online Scam / UPI Fraud",
+      name: "UPI Fraud",
       icon: "card",
-      color: "#6366F1",
+      color: COLORS.primary,
       number: "1930",
       description: "Report Online & UPI Fraud",
     },
   ];
+
+  const allEmergencyTypes = [...coreEmergencyTypes, ...extraEmergencyTypes];
 
   useEffect(() => {
     // Pulse animation for SOS button
@@ -115,7 +129,7 @@ const Home = () => {
           duration: 1200,
           useNativeDriver: true,
         }),
-      ])
+      ]),
     ).start();
 
     // Ring animation
@@ -145,7 +159,7 @@ const Home = () => {
             useNativeDriver: true,
           }),
         ]),
-      ])
+      ]),
     ).start();
 
     loadEmergencyContacts();
@@ -174,7 +188,10 @@ const Home = () => {
             return;
           }
         } catch (firebaseError) {
-          console.warn("⚠️ Firebase failed, trying AsyncStorage:", firebaseError.message);
+          console.warn(
+            "⚠️ Firebase failed, trying AsyncStorage:",
+            firebaseError.message,
+          );
         }
       }
 
@@ -276,9 +293,17 @@ const Home = () => {
     }
   };
 
-  const sendEmergencySMS = async (location, battery, network, emergencyType) => {
+  const sendEmergencySMS = async (
+    location,
+    battery,
+    network,
+    emergencyType,
+  ) => {
     if (emergencyContacts.length === 0) {
-      Alert.alert("⚠️ No Contacts", "No emergency contacts found. Add contacts in the Contacts tab.");
+      Alert.alert(
+        "⚠️ No Contacts",
+        "No emergency contacts found. Add contacts in the Contacts tab.",
+      );
       return { sent: 0, failed: 0 };
     }
 
@@ -328,7 +353,12 @@ const Home = () => {
     }
   };
 
-  const broadcastDistressSignal = (location, battery, network, emergencyType) => {
+  const broadcastDistressSignal = (
+    location,
+    battery,
+    network,
+    emergencyType,
+  ) => {
     const distressData = {
       type: emergencyType,
       message: `${emergencyType} - Immediate assistance required!`,
@@ -347,11 +377,17 @@ const Home = () => {
   const handleSOSClick = async () => {
     const permissions = await requestAllPermissions();
     if (!permissions.location) {
-      Alert.alert("Permission Required", "Location permission is required for emergency alerts");
+      Alert.alert(
+        "Permission Required",
+        "Location permission is required for emergency alerts",
+      );
       return;
     }
     if (!permissions.call) {
-      Alert.alert("Permission Required", "Phone call permission is required to call emergency services");
+      Alert.alert(
+        "Permission Required",
+        "Phone call permission is required to call emergency services",
+      );
       return;
     }
     setShowModal(true);
@@ -364,8 +400,25 @@ const Home = () => {
       const location = await getCurrentLocation();
       const battery = await getBatteryLevel();
       const network = await getNetworkInfo();
-      const smsResult = await sendEmergencySMS(location, battery, network, emergency.name);
+      const smsResult = await sendEmergencySMS(
+        location,
+        battery,
+        network,
+        emergency.name,
+      );
       broadcastDistressSignal(location, battery, network, emergency.name);
+
+      // 🚨 Trigger siren on emergency contacts' devices
+      const contactPhones = emergencyContacts
+        .map((c) => c.phone || c.phoneNumber)
+        .filter(Boolean);
+      const locationString = `${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`;
+      await triggerSOSSiren(
+        "RakshaNet User",
+        "SOS",
+        locationString,
+        contactPhones,
+      );
 
       setIsProcessing(false);
       setShowModal(false);
@@ -394,7 +447,7 @@ const Home = () => {
               setSelectedEmergency(null);
             },
           },
-        ]
+        ],
       );
     }
   };
@@ -403,32 +456,84 @@ const Home = () => {
     if (!isProcessing) {
       setShowModal(false);
       setSelectedEmergency(null);
+      setShowMoreTypes(false);
     }
   };
 
   const getContactColor = (index) => {
-    const colors = ["#E53935", "#1E88E5", "#43A047", "#FB8C00", "#8E24AA", "#00ACC1"];
+    const colors = [
+      COLORS.primary,
+      COLORS.info,
+      COLORS.successDark,
+      COLORS.warning,
+      "#8E24AA",
+      "#00ACC1",
+    ];
     return colors[index % colors.length];
   };
 
+  const renderEmergencyRow = (emergency) => (
+    <TouchableOpacity
+      key={emergency.id}
+      style={[
+        styles.emergencyRow,
+        isProcessing && styles.disabledOption,
+      ]}
+      onPress={() => handleEmergencySelect(emergency)}
+      disabled={isProcessing}
+      activeOpacity={0.7}
+    >
+      <View style={styles.emergencyIconCircle}>
+        <Ionicons name={emergency.icon} size={22} color={COLORS.primary} />
+      </View>
+      <View style={styles.emergencyInfo}>
+        <Text style={styles.emergencyName}>{emergency.name}</Text>
+        <Text style={styles.emergencyDescription}>
+          {emergency.description}
+        </Text>
+      </View>
+      {selectedEmergency?.id === emergency.id && isProcessing ? (
+        <View style={styles.processingBadge}>
+          <Text style={styles.processingBadgeText}>Sending...</Text>
+        </View>
+      ) : (
+        <TouchableOpacity
+          style={styles.callNowBtn}
+          onPress={() => handleEmergencySelect(emergency)}
+          disabled={isProcessing}
+        >
+          <Text style={styles.callNowText}>CALL{'\n'}{emergency.number}</Text>
+        </TouchableOpacity>
+      )}
+    </TouchableOpacity>
+  );
+
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F5F6FA" />
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
+        {/* Red Header Bar */}
         <View style={styles.header}>
-          <View>
-            <Text style={styles.headerLabel}>Emergency</Text>
+          <View style={styles.headerTop}>
             <Text style={styles.appName}>RakshaNet</Text>
-          </View>
-          <View style={styles.headerRight}>
-            <View style={styles.profileAvatar}>
-              <Ionicons name="person" size={20} color="#FFFFFF" />
+            <View style={styles.headerIcons}>
+              <TouchableOpacity style={styles.headerIconBtn}>
+                <Ionicons name="notifications-outline" size={22} color={COLORS.textPrimary} />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.headerIconBtn}>
+                <Ionicons name="settings-outline" size={22} color={COLORS.textPrimary} />
+              </TouchableOpacity>
             </View>
+          </View>
+
+          {/* Search Bar */}
+          <View style={styles.searchBar}>
+            <Ionicons name="search" size={18} color={COLORS.textMuted} />
+            <Text style={styles.searchPlaceholder}>Search...</Text>
           </View>
         </View>
 
@@ -459,21 +564,22 @@ const Home = () => {
             </TouchableOpacity>
           </Animated.View>
 
-          <Text style={styles.sosHint}>Tap for Emergency Alert</Text>
+          <Text style={styles.sosLabel}>Help Secure</Text>
+          <Text style={styles.sosHint}>Tap for immediate emergency assistance</Text>
         </View>
 
-        {/* Emergency Contacts Section */}
+        {/* Safety Contacts Section */}
         <View style={styles.contactsSection}>
           <View style={styles.contactsHeader}>
-            <Text style={styles.contactsTitle}>Your Emergency Contacts</Text>
+            <Text style={styles.sectionTitle}>Safety Contacts</Text>
             <TouchableOpacity onPress={() => navigation.navigate("Contacts")}>
-              <Ionicons name="add-circle" size={28} color="#E53935" />
+              <Ionicons name="add-circle" size={28} color={COLORS.primary} />
             </TouchableOpacity>
           </View>
 
           {emergencyContacts.length === 0 ? (
             <View style={styles.emptyContacts}>
-              <Ionicons name="people-outline" size={48} color="#BDBDBD" />
+              <Ionicons name="people-outline" size={48} color={COLORS.textMutedLight} />
               <Text style={styles.emptyText}>No emergency contacts yet</Text>
               <TouchableOpacity
                 style={styles.addContactBtn}
@@ -497,68 +603,48 @@ const Home = () => {
                 </View>
                 <View style={styles.contactInfo}>
                   <Text style={styles.contactName}>{contact.name}</Text>
-                  <Text style={styles.contactPhone}>
-                    {contact.phone || contact.phoneNumber}
+                  <Text style={styles.contactRelation}>
+                    {contact.relationship || "Emergency Contact"}
                   </Text>
                 </View>
-                <TouchableOpacity
-                  style={styles.contactCallBtn}
-                  onPress={() =>
-                    Linking.openURL(`tel:${contact.phone || contact.phoneNumber}`)
-                  }
-                >
-                  <Ionicons name="call" size={18} color="#E53935" />
-                </TouchableOpacity>
+                <View style={styles.contactActions}>
+                  <TouchableOpacity
+                    style={styles.contactActionBtn}
+                    onPress={() =>
+                      Linking.openURL(
+                        `tel:${contact.phone || contact.phoneNumber}`,
+                      )
+                    }
+                  >
+                    <Ionicons name="call" size={16} color={COLORS.primary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.contactActionBtn}
+                    onPress={() =>
+                      Linking.openURL(
+                        `sms:${contact.phone || contact.phoneNumber}`,
+                      )
+                    }
+                  >
+                    <Ionicons name="chatbubble" size={16} color={COLORS.primary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.contactActionBtn}
+                    onPress={() => navigation.navigate("Location")}
+                  >
+                    <Ionicons name="location" size={16} color={COLORS.primary} />
+                  </TouchableOpacity>
+                </View>
               </View>
             ))
           )}
         </View>
 
-        {/* Location Status */}
-        <View style={styles.locationStatus}>
-          <View
-            style={[
-              styles.statusDot,
-              { backgroundColor: locationShared ? "#43A047" : "#BDBDBD" },
-            ]}
-          />
-          <Text style={styles.statusText}>
-            {locationShared
-              ? "Your Live location is Shared"
-              : "Location will be shared on SOS"}
-          </Text>
-        </View>
-
-        {/* Quick Actions */}
-        <View style={styles.quickActions}>
-          <TouchableOpacity
-            style={styles.quickActionBtn}
-            onPress={() => navigation.navigate("Location")}
-          >
-            <Ionicons name="navigate" size={22} color="#1E88E5" />
-            <Text style={styles.quickActionLabel}>Live Map</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.quickActionBtn}
-            onPress={() => navigation.navigate("Info")}
-          >
-            <Ionicons name="cloudy" size={22} color="#FB8C00" />
-            <Text style={styles.quickActionLabel}>Weather</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.quickActionBtn}
-            onPress={() => navigation.navigate("Contacts")}
-          >
-            <Ionicons name="people" size={22} color="#8E24AA" />
-            <Text style={styles.quickActionLabel}>Contacts</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Background SOS Service */}
+        {/* Volume Shortcut Card — Dark */}
         <TouchableOpacity
           style={[
-            styles.bgSOSCard,
-            sosServiceEnabled && styles.bgSOSCardActive,
+            styles.volumeCard,
+            sosServiceEnabled && styles.volumeCardActive,
           ]}
           onPress={async () => {
             if (!sosServiceEnabled) {
@@ -570,47 +656,55 @@ const Home = () => {
                   {
                     text: "Open Settings",
                     onPress: async () => {
-                      // Sync contacts first
                       await syncContactsToNative(emergencyContacts);
                       await openAccessibilitySettings();
                     },
                   },
-                ]
+                ],
               );
             } else {
-              // Sync contacts when tapped if already enabled
               await syncContactsToNative(emergencyContacts);
-              Alert.alert("✅ Active", "Background SOS is enabled. Volume Up ×3 will trigger emergency alert from anywhere.");
+              Alert.alert(
+                "✅ Active",
+                "Background SOS is enabled. Volume Up ×3 will trigger emergency alert from anywhere.",
+              );
             }
           }}
           activeOpacity={0.8}
         >
-          <View style={styles.bgSOSIcon}>
-            <Ionicons
-              name={sosServiceEnabled ? "shield-checkmark" : "shield-outline"}
-              size={24}
-              color={sosServiceEnabled ? "#43A047" : "#E53935"}
-            />
+          <View style={styles.volumeCardContent}>
+            <View style={styles.volumeIconRow}>
+              <View style={styles.volumeIcon}>
+                <Ionicons
+                  name={sosServiceEnabled ? "shield-checkmark" : "volume-high"}
+                  size={24}
+                  color={sosServiceEnabled ? COLORS.success : COLORS.textPrimary}
+                />
+              </View>
+              <View style={{ flex: 1, marginLeft: 14 }}>
+                <Text style={styles.volumeTitle}>
+                  {sosServiceEnabled
+                    ? "Volume Shortcut Active"
+                    : "Volume Shortcut"}
+                </Text>
+                <Text style={styles.volumeSubtitle}>
+                  {sosServiceEnabled
+                    ? "Press Volume Up ×3 to trigger SOS from anywhere"
+                    : "Enable to trigger SOS from anywhere"}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.volumeFooterIcons}>
+              <Ionicons name="volume-high" size={18} color="rgba(255,255,255,0.4)" />
+              <Ionicons name="call" size={18} color="rgba(255,255,255,0.4)" />
+              <Ionicons name="location" size={18} color="rgba(255,255,255,0.4)" />
+              <Ionicons name="people" size={18} color="rgba(255,255,255,0.4)" />
+            </View>
           </View>
-          <View style={styles.bgSOSInfo}>
-            <Text style={styles.bgSOSTitle}>
-              {sosServiceEnabled ? "Background SOS Active" : "Enable Background SOS"}
-            </Text>
-            <Text style={styles.bgSOSSubtitle}>
-              {sosServiceEnabled
-                ? "Volume Up ×3 works even when app is closed"
-                : "Press Volume Up ×3 anytime to trigger SOS"}
-            </Text>
-          </View>
-          <Ionicons
-            name={sosServiceEnabled ? "checkmark-circle" : "chevron-forward"}
-            size={22}
-            color={sosServiceEnabled ? "#43A047" : "#9E9E9E"}
-          />
         </TouchableOpacity>
       </ScrollView>
 
-      {/* Emergency Selection Modal */}
+      {/* Emergency Selection Modal — Step 3 */}
       <Modal
         visible={showModal}
         transparent={true}
@@ -623,50 +717,44 @@ const Home = () => {
 
             {/* Modal Header */}
             <View style={styles.modalHeader}>
-              <View>
-                <Text style={styles.modalTitle}>Select Emergency Type</Text>
-                <Text style={styles.modalSubtitle}>
-                  This will notify contacts and call emergency services
-                </Text>
+              <View style={styles.modalHeaderInner}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.modalTitle}>What is your emergency?</Text>
+                  <Text style={styles.modalSubtitle}>
+                    Tap the category that best fits your situation to quickly connect with help.
+                  </Text>
+                </View>
+                {!isProcessing && (
+                  <TouchableOpacity
+                    onPress={closeModal}
+                    style={styles.closeButton}
+                  >
+                    <Ionicons name="close" size={24} color={COLORS.textPrimary} />
+                  </TouchableOpacity>
+                )}
               </View>
-              {!isProcessing && (
-                <TouchableOpacity onPress={closeModal} style={styles.closeButton}>
-                  <Ionicons name="close" size={24} color="#FFFFFF" />
-                </TouchableOpacity>
-              )}
             </View>
 
-            {/* Emergency Options */}
+            {/* Core 4 Emergency Options */}
             <ScrollView style={styles.optionsContainer}>
-              {emergencyTypes.map((emergency) => (
-                <TouchableOpacity
-                  key={emergency.id}
-                  style={[
-                    styles.emergencyOption,
-                    { backgroundColor: emergency.color },
-                    isProcessing && styles.disabledOption,
-                  ]}
-                  onPress={() => handleEmergencySelect(emergency)}
-                  disabled={isProcessing}
-                  activeOpacity={0.8}
-                >
-                  <View style={styles.emergencyIconContainer}>
-                    <Ionicons name={emergency.icon} size={24} color="#FFFFFF" />
-                  </View>
-                  <View style={styles.emergencyInfo}>
-                    <Text style={styles.emergencyName}>{emergency.name}</Text>
-                    <Text style={styles.emergencyDescription}>
-                      {emergency.description}
-                    </Text>
-                    <Text style={styles.emergencyNumber}>
-                      📞 Will call {emergency.number}
-                    </Text>
-                  </View>
-                  {selectedEmergency?.id === emergency.id && isProcessing && (
-                    <Text style={styles.loadingText}>⏳</Text>
-                  )}
-                </TouchableOpacity>
-              ))}
+              {coreEmergencyTypes.map(renderEmergencyRow)}
+
+              {/* More options toggle */}
+              <TouchableOpacity
+                style={styles.showMoreBtn}
+                onPress={() => setShowMoreTypes(!showMoreTypes)}
+              >
+                <Text style={styles.showMoreText}>
+                  {showMoreTypes ? "Show less" : "More emergency types"}
+                </Text>
+                <Ionicons
+                  name={showMoreTypes ? "chevron-up" : "chevron-down"}
+                  size={18}
+                  color={COLORS.textMuted}
+                />
+              </TouchableOpacity>
+
+              {showMoreTypes && extraEmergencyTypes.map(renderEmergencyRow)}
             </ScrollView>
 
             {/* Processing State */}
@@ -676,12 +764,24 @@ const Home = () => {
                   ⏳ Sending emergency alert...
                 </Text>
                 <View style={styles.processingSteps}>
-                  <Text style={styles.processingStep}>📍 Getting your location...</Text>
-                  <Text style={styles.processingStep}>🔋 Checking battery level...</Text>
-                  <Text style={styles.processingStep}>📶 Checking network status...</Text>
-                  <Text style={styles.processingStep}>📱 Notifying emergency contacts...</Text>
-                  <Text style={styles.processingStep}>📡 Broadcasting to nearby users...</Text>
-                  <Text style={styles.processingStep}>📞 Preparing to call...</Text>
+                  <Text style={styles.processingStep}>
+                    📍 Getting your location...
+                  </Text>
+                  <Text style={styles.processingStep}>
+                    🔋 Checking battery level...
+                  </Text>
+                  <Text style={styles.processingStep}>
+                    📶 Checking network status...
+                  </Text>
+                  <Text style={styles.processingStep}>
+                    📱 Notifying emergency contacts...
+                  </Text>
+                  <Text style={styles.processingStep}>
+                    📡 Broadcasting to nearby users...
+                  </Text>
+                  <Text style={styles.processingStep}>
+                    📞 Preparing to call...
+                  </Text>
                 </View>
               </View>
             )}
@@ -704,46 +804,58 @@ const Home = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F6FA",
+    backgroundColor: COLORS.bgLight,
   },
   scrollContent: {
     paddingBottom: 20,
   },
-  // Header
+
+  // ── Header ──
   header: {
+    backgroundColor: COLORS.primary,
+    paddingTop: 50,
+    paddingBottom: 16,
+    paddingHorizontal: SPACING.xxl,
+    borderBottomLeftRadius: RADIUS.xl,
+    borderBottomRightRadius: RADIUS.xl,
+  },
+  headerTop: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingTop: 55,
-    paddingBottom: 10,
-    paddingHorizontal: 24,
-  },
-  headerLabel: {
-    fontSize: 13,
-    color: "#E53935",
-    fontWeight: "700",
-    letterSpacing: 1,
-    textTransform: "uppercase",
+    marginBottom: SPACING.md,
   },
   appName: {
-    fontSize: 28,
-    fontWeight: "800",
-    color: "#1A1A2E",
-    marginTop: 2,
+    ...TYPOGRAPHY.h1,
+    color: COLORS.textPrimary,
   },
-  headerRight: {
+  headerIcons: {
     flexDirection: "row",
-    alignItems: "center",
+    gap: SPACING.sm,
   },
-  profileAvatar: {
+  headerIconBtn: {
     width: 40,
     height: 40,
-    borderRadius: 20,
-    backgroundColor: "#E53935",
+    borderRadius: RADIUS.circle,
+    backgroundColor: "rgba(255,255,255,0.15)",
     justifyContent: "center",
     alignItems: "center",
   },
-  // SOS Section
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.2)",
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    gap: SPACING.sm,
+  },
+  searchPlaceholder: {
+    ...TYPOGRAPHY.body,
+    color: "rgba(255,255,255,0.6)",
+  },
+
+  // ── SOS Section ──
   sosSection: {
     alignItems: "center",
     justifyContent: "center",
@@ -756,7 +868,7 @@ const styles = StyleSheet.create({
     height: 220,
     borderRadius: 110,
     borderWidth: 3,
-    borderColor: "#E53935",
+    borderColor: COLORS.primary,
   },
   sosRingStatic: {
     position: "absolute",
@@ -770,78 +882,72 @@ const styles = StyleSheet.create({
     width: 160,
     height: 160,
     borderRadius: 80,
-    backgroundColor: "#E53935",
+    backgroundColor: COLORS.primary,
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#E53935",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 20,
-    elevation: 15,
+    ...SHADOWS.glow,
   },
   sosText: {
-    fontSize: 42,
-    fontWeight: "900",
-    color: "#FFFFFF",
-    letterSpacing: 4,
+    ...TYPOGRAPHY.hero,
+    color: COLORS.textPrimary,
+  },
+  sosLabel: {
+    marginTop: 16,
+    ...TYPOGRAPHY.h3,
+    color: COLORS.textDark,
   },
   sosHint: {
-    marginTop: 20,
-    fontSize: 14,
-    color: "#9E9E9E",
-    fontWeight: "500",
+    marginTop: 6,
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textMuted,
   },
-  // Contacts Section
+
+  // ── Safety Contacts ──
   contactsSection: {
-    marginHorizontal: 20,
+    marginHorizontal: SPACING.xl,
     marginTop: 10,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    padding: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 3,
+    backgroundColor: COLORS.bgLight,
+    borderRadius: RADIUS.xl,
+    padding: SPACING.xl,
+    ...SHADOWS.md,
   },
   contactsHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: SPACING.lg,
   },
-  contactsTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: "#1A1A2E",
+  sectionTitle: {
+    ...TYPOGRAPHY.h3,
+    color: COLORS.textDark,
   },
   emptyContacts: {
     alignItems: "center",
-    paddingVertical: 24,
+    paddingVertical: SPACING.xxl,
   },
   emptyText: {
-    fontSize: 14,
-    color: "#9E9E9E",
+    ...TYPOGRAPHY.body,
+    color: COLORS.textMuted,
     marginTop: 10,
   },
   addContactBtn: {
-    marginTop: 12,
-    backgroundColor: "#FFEBEE",
-    paddingHorizontal: 20,
+    marginTop: SPACING.md,
+    backgroundColor: COLORS.primaryBg,
+    paddingHorizontal: SPACING.xl,
     paddingVertical: 10,
-    borderRadius: 20,
+    borderRadius: RADIUS.pill,
   },
   addContactText: {
-    color: "#E53935",
+    color: COLORS.primary,
     fontWeight: "600",
     fontSize: 14,
   },
   contactCard: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 12,
+    paddingVertical: SPACING.md,
     borderBottomWidth: 1,
-    borderBottomColor: "#F5F5F5",
+    borderBottomColor: COLORS.divider,
   },
   contactAvatar: {
     width: 44,
@@ -853,137 +959,91 @@ const styles = StyleSheet.create({
   contactInitial: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#FFFFFF",
+    color: COLORS.textPrimary,
   },
   contactInfo: {
     flex: 1,
     marginLeft: 14,
   },
   contactName: {
-    fontSize: 15,
+    ...TYPOGRAPHY.body,
     fontWeight: "600",
-    color: "#1A1A2E",
+    color: COLORS.textDark,
   },
-  contactPhone: {
-    fontSize: 13,
-    color: "#9E9E9E",
+  contactRelation: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textMuted,
     marginTop: 2,
   },
-  contactCallBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#FFEBEE",
+  contactActions: {
+    flexDirection: "row",
+    gap: SPACING.sm,
+  },
+  contactActionBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: COLORS.primaryBg,
     justifyContent: "center",
     alignItems: "center",
   },
-  // Location Status
-  locationStatus: {
+
+  // ── Volume Shortcut Card ──
+  volumeCard: {
+    marginHorizontal: SPACING.xl,
+    marginTop: SPACING.lg,
+    marginBottom: SPACING.sm,
+    backgroundColor: COLORS.bgDarkCard,
+    borderRadius: RADIUS.xl,
+    overflow: "hidden",
+  },
+  volumeCardActive: {
+    backgroundColor: COLORS.bgDarkElevated,
+  },
+  volumeCardContent: {
+    padding: SPACING.xl,
+  },
+  volumeIconRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    marginTop: 20,
-    marginHorizontal: 20,
-    paddingVertical: 14,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 14,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2,
+    marginBottom: SPACING.lg,
   },
-  statusDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginRight: 10,
-  },
-  statusText: {
-    fontSize: 13,
-    color: "#616161",
-    fontWeight: "500",
-  },
-  // Quick Actions
-  quickActions: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginHorizontal: 20,
-    marginTop: 16,
-    gap: 12,
-  },
-  quickActionBtn: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    paddingVertical: 18,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  quickActionLabel: {
-    fontSize: 12,
-    color: "#616161",
-    fontWeight: "600",
-    marginTop: 8,
-  },
-  // Background SOS Card
-  bgSOSCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginHorizontal: 20,
-    marginTop: 16,
-    marginBottom: 8,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#FFCDD2",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  bgSOSCardActive: {
-    borderColor: "#C8E6C9",
-    backgroundColor: "#F1F8E9",
-  },
-  bgSOSIcon: {
+  volumeIcon: {
     width: 48,
     height: 48,
-    borderRadius: 24,
-    backgroundColor: "#FFEBEE",
+    borderRadius: RADIUS.xxl,
+    backgroundColor: "rgba(229, 57, 53, 0.15)",
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 14,
   },
-  bgSOSInfo: {
-    flex: 1,
-  },
-  bgSOSTitle: {
-    fontSize: 15,
+  volumeTitle: {
+    ...TYPOGRAPHY.body,
     fontWeight: "700",
-    color: "#1A1A2E",
+    color: COLORS.textPrimary,
   },
-  bgSOSSubtitle: {
-    fontSize: 12,
-    color: "#9E9E9E",
+  volumeSubtitle: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textSecondary,
     marginTop: 3,
   },
-  // Modal
+  volumeFooterIcons: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    paddingTop: SPACING.md,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.08)",
+  },
+
+  // ── Modal ──
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: COLORS.overlay,
     justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
+    backgroundColor: COLORS.bgLight,
+    borderTopLeftRadius: RADIUS.xxl + 4,
+    borderTopRightRadius: RADIUS.xxl + 4,
     maxHeight: "90%",
   },
   modalHandle: {
@@ -992,29 +1052,30 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     backgroundColor: "#E0E0E0",
     alignSelf: "center",
-    marginTop: 12,
-    marginBottom: 4,
+    marginTop: SPACING.md,
+    marginBottom: SPACING.xs,
   },
   modalHeader: {
-    backgroundColor: "#E53935",
-    padding: 20,
-    marginTop: 8,
-    marginHorizontal: 16,
-    borderRadius: 16,
+    marginTop: SPACING.sm,
+    marginHorizontal: SPACING.lg,
+  },
+  modalHeaderInner: {
+    backgroundColor: COLORS.primary,
+    padding: SPACING.xl,
+    borderRadius: RADIUS.lg,
     flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
   },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#FFFFFF",
+    ...TYPOGRAPHY.h2,
+    color: COLORS.textPrimary,
   },
   modalSubtitle: {
-    fontSize: 13,
-    color: "#FFFFFF",
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textPrimary,
     opacity: 0.9,
-    marginTop: 4,
+    marginTop: SPACING.xs,
+    lineHeight: 18,
   },
   closeButton: {
     width: 36,
@@ -1023,89 +1084,119 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 255, 255, 0.2)",
     justifyContent: "center",
     alignItems: "center",
+    marginLeft: SPACING.md,
   },
+
+  // Emergency Rows
   optionsContainer: {
-    padding: 16,
-    maxHeight: 380,
+    padding: SPACING.lg,
+    maxHeight: 420,
   },
-  emergencyOption: {
+  emergencyRow: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 16,
-    borderRadius: 16,
-    marginBottom: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 3,
+    paddingVertical: SPACING.lg,
+    paddingHorizontal: SPACING.lg,
+    backgroundColor: COLORS.bgLight,
+    borderRadius: RADIUS.lg,
+    marginBottom: SPACING.sm,
+    borderWidth: 1,
+    borderColor: COLORS.divider,
   },
   disabledOption: {
     opacity: 0.6,
   },
-  emergencyIconContainer: {
+  emergencyIconCircle: {
     width: 48,
     height: 48,
-    borderRadius: 14,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: RADIUS.xxl,
+    backgroundColor: COLORS.primaryBg,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 14,
+    marginRight: SPACING.md,
   },
   emergencyInfo: {
     flex: 1,
   },
   emergencyName: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#FFFFFF",
-    marginBottom: 3,
+    ...TYPOGRAPHY.body,
+    fontWeight: "700",
+    color: COLORS.textDark,
   },
   emergencyDescription: {
-    fontSize: 13,
-    color: "#FFFFFF",
-    opacity: 0.9,
-    marginBottom: 3,
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textMuted,
+    marginTop: 2,
   },
-  emergencyNumber: {
-    fontSize: 12,
-    color: "#FFFFFF",
-    fontWeight: "600",
+  callNowBtn: {
+    backgroundColor: COLORS.primary,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    alignItems: "center",
+    minWidth: 60,
   },
-  loadingText: {
-    fontSize: 24,
+  callNowText: {
+    color: COLORS.textPrimary,
+    fontSize: 11,
+    fontWeight: "800",
+    textAlign: "center",
+    lineHeight: 14,
   },
+  processingBadge: {
+    backgroundColor: COLORS.primaryBg,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+  },
+  processingBadgeText: {
+    color: COLORS.primary,
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  showMoreBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: SPACING.md,
+    gap: SPACING.xs,
+  },
+  showMoreText: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textMuted,
+  },
+
   processingContainer: {
-    padding: 16,
-    marginHorizontal: 16,
-    backgroundColor: "#FFEBEE",
-    borderRadius: 16,
-    marginBottom: 8,
+    padding: SPACING.lg,
+    marginHorizontal: SPACING.lg,
+    backgroundColor: COLORS.primaryBg,
+    borderRadius: RADIUS.lg,
+    marginBottom: SPACING.sm,
   },
   processingTitle: {
-    fontSize: 15,
+    ...TYPOGRAPHY.body,
     fontWeight: "600",
-    color: "#C62828",
+    color: COLORS.primaryDark,
     textAlign: "center",
-    marginBottom: 12,
+    marginBottom: SPACING.md,
   },
   processingSteps: {
-    paddingLeft: 8,
+    paddingLeft: SPACING.sm,
   },
   processingStep: {
-    fontSize: 13,
+    ...TYPOGRAPHY.caption,
     color: "#4B5563",
     marginBottom: 6,
   },
   modalFooter: {
-    padding: 16,
-    marginHorizontal: 16,
-    marginBottom: 16,
-    backgroundColor: "#F5F5F5",
-    borderRadius: 12,
+    padding: SPACING.lg,
+    marginHorizontal: SPACING.lg,
+    marginBottom: SPACING.lg,
+    backgroundColor: COLORS.bgLightGrey,
+    borderRadius: RADIUS.md,
   },
   footerText: {
-    fontSize: 12,
+    ...TYPOGRAPHY.small,
     color: "#757575",
     textAlign: "center",
     lineHeight: 18,

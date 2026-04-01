@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
     Text,
     TouchableOpacity,
@@ -7,19 +7,28 @@ import {
     Animated,
     Vibration,
     StatusBar,
-    Platform,
     View,
     Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { COLORS, TYPOGRAPHY, RADIUS, SPACING, SHADOWS, ANIM } from '../src/theme';
 
 const { width } = Dimensions.get('window');
 
 export default function SOSScreen({ navigation }) {
     const fadeAnim = useRef(new Animated.Value(0)).current;
-    const pulseAnim = useRef(new Animated.Value(1)).current;
-    const ringScale = useRef(new Animated.Value(0.8)).current;
-    const ringOpacity = useRef(new Animated.Value(0.5)).current;
+    const triangleScale = useRef(new Animated.Value(1)).current;
+    const triangleOpacity = useRef(new Animated.Value(1)).current;
+    const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+    // Alert status items
+    const [alertStatus, setAlertStatus] = useState({
+        smsSent: false,
+        locationShared: false,
+        broadcastActive: false,
+        alertSounding: false,
+    });
 
     useEffect(() => {
         // Vibrate on open
@@ -32,33 +41,56 @@ export default function SOSScreen({ navigation }) {
             useNativeDriver: true,
         }).start();
 
-        // Pulse the SOS button
-        const pulse = Animated.loop(
+        // Warning triangle scale pulse: 1.0 → 1.15 → 1.0 @ 1200ms, looping
+        const scalePulse = Animated.loop(
             Animated.sequence([
-                Animated.timing(pulseAnim, { toValue: 1.08, duration: 800, useNativeDriver: true }),
-                Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+                Animated.timing(triangleScale, {
+                    toValue: ANIM.sosTrianglePulse.scaleTo,
+                    duration: ANIM.sosTrianglePulse.scaleDuration / 2,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(triangleScale, {
+                    toValue: ANIM.sosTrianglePulse.scaleFrom,
+                    duration: ANIM.sosTrianglePulse.scaleDuration / 2,
+                    useNativeDriver: true,
+                }),
             ])
         );
-        pulse.start();
 
-        // Ring animation
-        const ring = Animated.loop(
+        // Warning triangle opacity flash: 1.0 → 0.4 → 1.0 @ 800ms, looping
+        const opacityFlash = Animated.loop(
             Animated.sequence([
-                Animated.parallel([
-                    Animated.timing(ringScale, { toValue: 1.4, duration: 1500, useNativeDriver: true }),
-                    Animated.timing(ringOpacity, { toValue: 0, duration: 1500, useNativeDriver: true }),
-                ]),
-                Animated.parallel([
-                    Animated.timing(ringScale, { toValue: 0.8, duration: 0, useNativeDriver: true }),
-                    Animated.timing(ringOpacity, { toValue: 0.5, duration: 0, useNativeDriver: true }),
-                ]),
+                Animated.timing(triangleOpacity, {
+                    toValue: ANIM.sosTriangleFlash.opacityTo,
+                    duration: ANIM.sosTriangleFlash.opacityDuration / 2,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(triangleOpacity, {
+                    toValue: ANIM.sosTriangleFlash.opacityFrom,
+                    duration: ANIM.sosTriangleFlash.opacityDuration / 2,
+                    useNativeDriver: true,
+                }),
             ])
         );
-        ring.start();
+
+        scalePulse.start();
+        opacityFlash.start();
+
+        // Countdown timer (counts up from 0)
+        const timer = setInterval(() => {
+            setElapsedSeconds((prev) => prev + 1);
+        }, 1000);
+
+        // Simulate status updates rolling in
+        setTimeout(() => setAlertStatus((s) => ({ ...s, smsSent: true })), 800);
+        setTimeout(() => setAlertStatus((s) => ({ ...s, locationShared: true })), 1500);
+        setTimeout(() => setAlertStatus((s) => ({ ...s, broadcastActive: true })), 2200);
+        setTimeout(() => setAlertStatus((s) => ({ ...s, alertSounding: true })), 3000);
 
         return () => {
-            pulse.stop();
-            ring.stop();
+            scalePulse.stop();
+            opacityFlash.stop();
+            clearInterval(timer);
         };
     }, []);
 
@@ -67,63 +99,97 @@ export default function SOSScreen({ navigation }) {
         Linking.openURL('tel:112');
     };
 
-    const callPolice = () => Linking.openURL('tel:100');
-    const callAmbulance = () => Linking.openURL('tel:108');
+    const cancelAlert = () => {
+        Vibration.cancel();
+        navigation.goBack();
+    };
+
+    const formatTime = (seconds) => {
+        return seconds.toString().padStart(2, '0');
+    };
+
+    const statusItems = [
+        { key: 'smsSent', label: 'Emergency SMS Sent', icon: 'chatbubble', active: alertStatus.smsSent },
+        { key: 'locationShared', label: 'Live Location Shared', icon: 'location', active: alertStatus.locationShared },
+        { key: 'broadcastActive', label: 'Network Broadcast Active', icon: 'radio', active: alertStatus.broadcastActive },
+        { key: 'alertSounding', label: 'Local Alert Sounding', icon: 'volume-high', active: alertStatus.alertSounding },
+    ];
 
     return (
         <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
-            <StatusBar barStyle="light-content" backgroundColor="#B71C1C" />
+            <StatusBar barStyle="light-content" backgroundColor={COLORS.primaryDark} />
 
-            {/* Header */}
-            <View style={styles.header}>
-                <View style={styles.alertBadge}>
-                    <Ionicons name="warning" size={14} color="#FFFFFF" />
-                    <Text style={styles.alertText}>EMERGENCY MODE ACTIVE</Text>
+            <LinearGradient
+                colors={[COLORS.primaryDark, '#2D0A0A', COLORS.bgDark]}
+                style={styles.gradient}
+            >
+                {/* Header */}
+                <View style={styles.header}>
+                    <Text style={styles.sosTitle}>SOS ACTIVE</Text>
+                    <Text style={styles.sosSubtitle}>Help is being dispatched</Text>
                 </View>
-                <Text style={styles.subtitle}>Volume ×3 shortcut triggered</Text>
-            </View>
 
-            {/* Big SOS Button */}
-            <View style={styles.sosWrapper}>
-                <Animated.View
-                    style={[
-                        styles.sosRingOuter,
-                        { transform: [{ scale: ringScale }], opacity: ringOpacity },
-                    ]}
-                />
-                <View style={styles.sosRingStatic} />
-                <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-                    <TouchableOpacity style={styles.sosButton} onPress={callEmergency}>
-                        <Text style={styles.sosLabel}>SOS</Text>
-                        <Text style={styles.sosSubLabel}>Tap to call 112</Text>
-                    </TouchableOpacity>
-                </Animated.View>
-            </View>
-
-            {/* Quick Call Buttons */}
-            <View style={styles.quickRow}>
-                <TouchableOpacity style={styles.quickBtn} onPress={callPolice}>
-                    <View style={[styles.quickIconBg, { backgroundColor: 'rgba(30, 136, 229, 0.15)' }]}>
-                        <Ionicons name="shield" size={26} color="#1E88E5" />
+                {/* Countdown + Warning Triangle */}
+                <View style={styles.centerSection}>
+                    {/* Countdown circle */}
+                    <View style={styles.countdownCircle}>
+                        <Text style={styles.countdownNumber}>{formatTime(elapsedSeconds)}</Text>
                     </View>
-                    <Text style={styles.quickLabel}>Police</Text>
-                    <Text style={styles.quickNumber}>100</Text>
-                </TouchableOpacity>
 
-                <TouchableOpacity style={styles.quickBtn} onPress={callAmbulance}>
-                    <View style={[styles.quickIconBg, { backgroundColor: 'rgba(229, 57, 53, 0.15)' }]}>
-                        <Ionicons name="medkit" size={26} color="#E53935" />
-                    </View>
-                    <Text style={styles.quickLabel}>Ambulance</Text>
-                    <Text style={styles.quickNumber}>108</Text>
-                </TouchableOpacity>
-            </View>
+                    {/* Animated Warning Triangle */}
+                    <Animated.View
+                        style={[
+                            styles.triangleContainer,
+                            {
+                                transform: [{ scale: triangleScale }],
+                                opacity: triangleOpacity,
+                            },
+                        ]}
+                    >
+                        <View style={styles.triangleBg}>
+                            <Ionicons name="warning" size={64} color={COLORS.textPrimary} />
+                        </View>
+                    </Animated.View>
+                </View>
 
-            {/* Dismiss */}
-            <TouchableOpacity style={styles.dismissBtn} onPress={() => navigation.goBack()}>
-                <Ionicons name="close-circle-outline" size={20} color="rgba(255,255,255,0.6)" />
-                <Text style={styles.dismissText}>Dismiss — I'm Safe</Text>
-            </TouchableOpacity>
+                {/* Alert Status */}
+                <View style={styles.statusSection}>
+                    <Text style={styles.statusTitle}>Alert Status</Text>
+
+                    {statusItems.map((item) => (
+                        <View key={item.key} style={styles.statusRow}>
+                            <View style={[
+                                styles.statusCheck,
+                                item.active && styles.statusCheckActive,
+                            ]}>
+                                <Ionicons
+                                    name={item.active ? "checkmark" : "hourglass-outline"}
+                                    size={14}
+                                    color={item.active ? COLORS.textPrimary : 'rgba(255,255,255,0.4)'}
+                                />
+                            </View>
+                            <Ionicons
+                                name={item.icon}
+                                size={18}
+                                color={item.active ? COLORS.primary : 'rgba(255,255,255,0.3)'}
+                                style={{ marginRight: SPACING.sm }}
+                            />
+                            <Text style={[
+                                styles.statusLabel,
+                                item.active && styles.statusLabelActive,
+                            ]}>
+                                {item.label}
+                            </Text>
+                        </View>
+                    ))}
+                </View>
+
+                {/* Cancel Alert Button */}
+                <TouchableOpacity style={styles.cancelBtn} onPress={cancelAlert}>
+                    <Ionicons name="close" size={22} color={COLORS.textPrimary} />
+                    <Text style={styles.cancelText}>CANCEL ALERT</Text>
+                </TouchableOpacity>
+            </LinearGradient>
         </Animated.View>
     );
 }
@@ -131,133 +197,124 @@ export default function SOSScreen({ navigation }) {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#B71C1C',
+    },
+    gradient: {
+        flex: 1,
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingVertical: 60,
-        paddingHorizontal: 24,
+        paddingHorizontal: SPACING.xxl,
     },
+
+    // Header
     header: {
         alignItems: 'center',
-        gap: 10,
+        gap: SPACING.sm,
     },
-    alertBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: 'rgba(255, 255, 255, 0.15)',
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.25)',
-        borderRadius: 25,
-        paddingHorizontal: 18,
-        paddingVertical: 8,
-        gap: 8,
+    sosTitle: {
+        ...TYPOGRAPHY.h1,
+        fontSize: 32,
+        color: COLORS.textPrimary,
+        letterSpacing: 4,
     },
-    alertText: {
-        color: '#FFFFFF',
-        fontSize: 12,
-        letterSpacing: 2,
-        fontWeight: '800',
-    },
-    subtitle: {
-        color: 'rgba(255, 255, 255, 0.5)',
-        fontSize: 12,
+    sosSubtitle: {
+        ...TYPOGRAPHY.caption,
+        color: COLORS.textSecondary,
         letterSpacing: 1,
     },
-    sosWrapper: {
+
+    // Center — Countdown + Triangle
+    centerSection: {
         alignItems: 'center',
-        justifyContent: 'center',
-        width: 240,
-        height: 240,
+        gap: SPACING.xxl,
     },
-    sosRingOuter: {
-        position: 'absolute',
-        width: 230,
-        height: 230,
-        borderRadius: 115,
+    countdownCircle: {
+        width: 80,
+        height: 80,
+        borderRadius: 40,
         borderWidth: 3,
-        borderColor: 'rgba(255, 255, 255, 0.3)',
+        borderColor: COLORS.primary,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(229, 57, 53, 0.1)',
     },
-    sosRingStatic: {
-        position: 'absolute',
-        width: 210,
-        height: 210,
-        borderRadius: 105,
-        borderWidth: 2,
-        borderColor: 'rgba(255, 255, 255, 0.1)',
+    countdownNumber: {
+        ...TYPOGRAPHY.h1,
+        fontSize: 32,
+        color: COLORS.primary,
     },
-    sosButton: {
-        width: 180,
-        height: 180,
-        borderRadius: 90,
-        backgroundColor: '#E53935',
+    triangleContainer: {
         alignItems: 'center',
         justifyContent: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.4,
-        shadowRadius: 20,
-        elevation: 20,
     },
-    sosLabel: {
-        color: '#FFFFFF',
-        fontSize: 52,
-        fontWeight: '900',
-        letterSpacing: 6,
+    triangleBg: {
+        width: 120,
+        height: 120,
+        borderRadius: 60,
+        backgroundColor: 'rgba(229, 57, 53, 0.2)',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
-    sosSubLabel: {
-        color: 'rgba(255, 255, 255, 0.7)',
-        fontSize: 13,
-        letterSpacing: 1,
-        marginTop: 4,
-        fontWeight: '500',
-    },
-    quickRow: {
-        flexDirection: 'row',
-        gap: 16,
+
+    // Alert Status
+    statusSection: {
         width: '100%',
+        gap: SPACING.md,
     },
-    quickBtn: {
-        flex: 1,
-        backgroundColor: 'rgba(255, 255, 255, 0.1)',
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.15)',
-        borderRadius: 20,
-        paddingVertical: 20,
-        alignItems: 'center',
-        gap: 8,
+    statusTitle: {
+        ...TYPOGRAPHY.h3,
+        color: COLORS.textPrimary,
+        marginBottom: SPACING.sm,
     },
-    quickIconBg: {
-        width: 52,
-        height: 52,
-        borderRadius: 26,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    quickLabel: {
-        color: '#FFFFFF',
-        fontSize: 14,
-        fontWeight: '700',
-    },
-    quickNumber: {
-        color: 'rgba(255, 255, 255, 0.5)',
-        fontSize: 12,
-        fontWeight: '600',
-        letterSpacing: 1,
-    },
-    dismissBtn: {
+    statusRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 14,
-        paddingHorizontal: 28,
+        backgroundColor: 'rgba(229, 57, 53, 0.08)',
+        borderRadius: RADIUS.md,
+        paddingVertical: SPACING.md,
+        paddingHorizontal: SPACING.lg,
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.2)',
-        borderRadius: 30,
-        gap: 8,
+        borderColor: 'rgba(229, 57, 53, 0.15)',
     },
-    dismissText: {
-        color: 'rgba(255, 255, 255, 0.6)',
-        fontSize: 14,
-        fontWeight: '500',
-        letterSpacing: 0.5,
+    statusCheck: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        borderWidth: 2,
+        borderColor: 'rgba(255,255,255,0.2)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: SPACING.md,
+    },
+    statusCheckActive: {
+        backgroundColor: COLORS.success,
+        borderColor: COLORS.success,
+    },
+    statusLabel: {
+        ...TYPOGRAPHY.body,
+        color: 'rgba(255,255,255,0.4)',
+        flex: 1,
+    },
+    statusLabelActive: {
+        color: COLORS.textPrimary,
+    },
+
+    // Cancel Button
+    cancelBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: COLORS.primary,
+        borderRadius: RADIUS.md,
+        paddingVertical: SPACING.lg,
+        paddingHorizontal: SPACING.xxxl,
+        width: '100%',
+        gap: SPACING.sm,
+    },
+    cancelText: {
+        ...TYPOGRAPHY.body,
+        fontWeight: '800',
+        color: COLORS.textPrimary,
+        letterSpacing: 2,
     },
 });

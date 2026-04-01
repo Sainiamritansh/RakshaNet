@@ -46,10 +46,31 @@ class MainApplication : Application(), ReactApplication {
     super.onCreate()
     SoLoader.init(this, OpenSourceMergedSoMapping)
     if (BuildConfig.IS_NEW_ARCHITECTURE_ENABLED) {
-      // If you opted-in for the New Architecture, we load the native entry point for this app.
       load()
     }
     ApplicationLifecycleDispatcher.onApplicationCreate(this)
+
+    // 🚨 SOS Siren notification channel
+    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+      val channel = android.app.NotificationChannel(
+        "sos_siren_channel",
+        "SOS Siren Alerts",
+        android.app.NotificationManager.IMPORTANCE_HIGH
+      )
+      channel.description = "Emergency SOS siren notifications"
+      channel.enableVibration(true)
+      channel.vibrationPattern = longArrayOf(0, 500, 200, 500, 200, 500)
+      val soundUri = android.net.Uri.parse(
+        "android.resource://" + packageName + "/raw/eas"
+      )
+      val audioAttributes = android.media.AudioAttributes.Builder()
+        .setUsage(android.media.AudioAttributes.USAGE_ALARM)
+        .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+        .build()
+      channel.setSound(soundUri, audioAttributes)
+      val manager = getSystemService(android.app.NotificationManager::class.java)
+      manager.createNotificationChannel(channel)
+    }
   }
 
   override fun onConfigurationChanged(newConfig: Configuration) {

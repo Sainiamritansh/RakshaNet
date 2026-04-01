@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -12,21 +12,28 @@ import {
   Linking,
   ScrollView,
   StatusBar,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { registerDeviceForSiren } from "../services/SOSSirenService";
+import { COLORS, TYPOGRAPHY, RADIUS, SPACING, SHADOWS } from "../src/theme";
 
-const CONTACTS_KEY = '@emergency_contacts';
+const MY_PHONE_KEY = "@my_phone_number";
+const CONTACTS_KEY = "@emergency_contacts";
 
 const EmergencyContacts = () => {
   const [contacts, setContacts] = useState([]);
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [relationship, setRelationship] = useState('');
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [relationship, setRelationship] = useState("");
   const [editingId, setEditingId] = useState(null);
+  const [myPhone, setMyPhone] = useState("");
+  const [myPhoneInput, setMyPhoneInput] = useState("");
+  const [myPhoneSaved, setMyPhoneSaved] = useState(false);
 
   useEffect(() => {
     loadContacts();
+    loadMyPhone();
     const interval = setInterval(() => {
       loadContacts();
     }, 2000);
@@ -42,9 +49,36 @@ const EmergencyContacts = () => {
         setContacts([]);
       }
     } catch (error) {
-      console.error('❌ Failed to load contacts:', error);
+      console.error("❌ Failed to load contacts:", error);
       setContacts([]);
     }
+  };
+
+  const loadMyPhone = async () => {
+    try {
+      const saved = await AsyncStorage.getItem(MY_PHONE_KEY);
+      if (saved) {
+        setMyPhone(saved);
+        setMyPhoneInput(saved);
+        setMyPhoneSaved(true);
+      }
+    } catch (e) {}
+  };
+
+  const saveMyPhone = async () => {
+    const cleaned = myPhoneInput.replace(/[\s\-\(\)]/g, "");
+    if (cleaned.length < 10) {
+      Alert.alert("Error", "Please enter a valid phone number");
+      return;
+    }
+    await AsyncStorage.setItem(MY_PHONE_KEY, cleaned);
+    setMyPhone(cleaned);
+    setMyPhoneSaved(true);
+    await registerDeviceForSiren(cleaned);
+    Alert.alert(
+      "✅ Saved",
+      "Your number is saved. You will now receive SOS sirens.",
+    );
   };
 
   const saveContacts = async (newContacts) => {
@@ -53,30 +87,39 @@ const EmergencyContacts = () => {
       await AsyncStorage.setItem(CONTACTS_KEY, jsonValue);
       setContacts(newContacts);
     } catch (error) {
-      Alert.alert('Error', 'Failed to save contact: ' + error.message);
+      Alert.alert("Error", "Failed to save contact: " + error.message);
     }
   };
 
   const addOrUpdateContact = () => {
     if (!name.trim() || !phone.trim()) {
-      Alert.alert('Error', 'Please enter name and phone number');
+      Alert.alert("Error", "Please enter name and phone number");
       return;
     }
 
-    const cleanPhone = phone.replace(/[\s\-\(\)]/g, '');
+    const cleanPhone = phone.replace(/[\s\-\(\)]/g, "");
     if (cleanPhone.length < 10) {
-      Alert.alert('Error', 'Please enter a valid phone number (at least 10 digits)');
+      Alert.alert(
+        "Error",
+        "Please enter a valid phone number (at least 10 digits)",
+      );
       return;
     }
 
     if (editingId) {
-      const updatedContacts = contacts.map(c =>
+      const updatedContacts = contacts.map((c) =>
         c.id === editingId
-          ? { ...c, name: name.trim(), phone: cleanPhone, phoneNumber: cleanPhone, relationship: relationship.trim() }
-          : c
+          ? {
+              ...c,
+              name: name.trim(),
+              phone: cleanPhone,
+              phoneNumber: cleanPhone,
+              relationship: relationship.trim(),
+            }
+          : c,
       );
       saveContacts(updatedContacts);
-      Alert.alert('✅ Updated', `${name} has been updated`);
+      Alert.alert("✅ Updated", `${name} has been updated`);
       setEditingId(null);
     } else {
       const newContact = {
@@ -84,48 +127,48 @@ const EmergencyContacts = () => {
         name: name.trim(),
         phone: cleanPhone,
         phoneNumber: cleanPhone,
-        relationship: relationship.trim() || 'Emergency Contact',
+        relationship: relationship.trim() || "Emergency Contact",
         addedAt: new Date().toISOString(),
       };
       const updatedContacts = [...contacts, newContact];
       saveContacts(updatedContacts);
-      Alert.alert('✅ Added', `${newContact.name} added successfully!`);
+      Alert.alert("✅ Added", `${newContact.name} added successfully!`);
     }
 
-    setName('');
-    setPhone('');
-    setRelationship('');
+    setName("");
+    setPhone("");
+    setRelationship("");
   };
 
   const editContact = (contact) => {
     setName(contact.name);
     setPhone(contact.phone || contact.phoneNumber);
-    setRelationship(contact.relationship || '');
+    setRelationship(contact.relationship || "");
     setEditingId(contact.id);
   };
 
   const cancelEdit = () => {
-    setName('');
-    setPhone('');
-    setRelationship('');
+    setName("");
+    setPhone("");
+    setRelationship("");
     setEditingId(null);
   };
 
   const deleteContact = (id, contactName) => {
     Alert.alert(
-      'Delete Contact',
+      "Delete Contact",
       `Are you sure you want to delete ${contactName}?`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: "Cancel", style: "cancel" },
         {
-          text: 'Delete',
-          style: 'destructive',
+          text: "Delete",
+          style: "destructive",
           onPress: () => {
-            const updatedContacts = contacts.filter(c => c.id !== id);
+            const updatedContacts = contacts.filter((c) => c.id !== id);
             saveContacts(updatedContacts);
           },
         },
-      ]
+      ],
     );
   };
 
@@ -135,39 +178,50 @@ const EmergencyContacts = () => {
 
   const clearAllContacts = () => {
     Alert.alert(
-      'Clear All Contacts',
-      'Are you sure you want to delete ALL emergency contacts?',
+      "Clear All Contacts",
+      "Are you sure you want to delete ALL emergency contacts?",
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: "Cancel", style: "cancel" },
         {
-          text: 'Clear All',
-          style: 'destructive',
+          text: "Clear All",
+          style: "destructive",
           onPress: async () => {
             await AsyncStorage.removeItem(CONTACTS_KEY);
             setContacts([]);
           },
         },
-      ]
+      ],
     );
   };
 
   const getColorByIndex = (index) => {
-    const colors = ['#E53935', '#1E88E5', '#43A047', '#FB8C00', '#8E24AA', '#00ACC1'];
+    const colors = [
+      COLORS.primary,
+      COLORS.info,
+      COLORS.successDark,
+      COLORS.warning,
+      "#8E24AA",
+      "#00ACC1",
+    ];
     return colors[index % colors.length];
   };
 
   const renderContact = ({ item, index }) => (
     <View style={styles.contactCard}>
       <View style={styles.contactRow}>
-        <View style={[styles.avatar, { backgroundColor: getColorByIndex(index) }]}>
-          <Text style={styles.avatarText}>{item.name.charAt(0).toUpperCase()}</Text>
+        <View
+          style={[styles.avatar, { backgroundColor: getColorByIndex(index) }]}
+        >
+          <Text style={styles.avatarText}>
+            {item.name.charAt(0).toUpperCase()}
+          </Text>
         </View>
         <View style={styles.contactDetails}>
           <Text style={styles.contactName}>{item.name}</Text>
           <Text style={styles.contactPhone}>{item.phone}</Text>
           {item.relationship && (
             <View style={styles.relationshipBadge}>
-              <Ionicons name="heart" size={10} color="#E53935" />
+              <Ionicons name="heart" size={10} color={COLORS.primary} />
               <Text style={styles.relationshipText}>{item.relationship}</Text>
             </View>
           )}
@@ -179,25 +233,25 @@ const EmergencyContacts = () => {
           style={[styles.actionBtn, styles.callBtn]}
           onPress={() => callContact(item.phone)}
         >
-          <Ionicons name="call" size={18} color="#1E88E5" />
+          <Ionicons name="call" size={18} color={COLORS.info} />
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.actionBtn, styles.smsBtn]}
           onPress={() => Linking.openURL(`sms:${item.phone}`)}
         >
-          <Ionicons name="chatbubble" size={18} color="#43A047" />
+          <Ionicons name="chatbubble" size={18} color={COLORS.successDark} />
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.actionBtn, styles.editBtn]}
           onPress={() => editContact(item)}
         >
-          <Ionicons name="create" size={18} color="#FB8C00" />
+          <Ionicons name="create" size={18} color={COLORS.warning} />
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.actionBtn, styles.deleteBtn]}
           onPress={() => deleteContact(item.id, item.name)}
         >
-          <Ionicons name="trash" size={18} color="#E53935" />
+          <Ionicons name="trash" size={18} color={COLORS.primary} />
         </TouchableOpacity>
       </View>
     </View>
@@ -205,114 +259,202 @@ const EmergencyContacts = () => {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={styles.container}
     >
-      <StatusBar barStyle="dark-content" backgroundColor="#F5F6FA" />
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.headerLabel}>Emergency</Text>
-          <Text style={styles.title}>Contacts</Text>
-        </View>
-        <View style={styles.headerActions}>
+      {/* Red Header Bar */}
+      <View style={styles.headerBar}>
+        <Text style={styles.headerBrand}>RakshaNet</Text>
+        <View style={styles.headerRight}>
           <View style={styles.countBadge}>
             <Text style={styles.countText}>{contacts.length}</Text>
           </View>
           {contacts.length > 0 && (
-            <TouchableOpacity onPress={clearAllContacts} style={styles.clearBtn}>
-              <Ionicons name="trash-outline" size={20} color="#E53935" />
+            <TouchableOpacity
+              onPress={clearAllContacts}
+              style={styles.clearBtn}
+            >
+              <Ionicons name="trash-outline" size={20} color={COLORS.textPrimary} />
             </TouchableOpacity>
           )}
         </View>
       </View>
 
-      <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Add/Edit Form */}
-        <View style={styles.formCard}>
-          <Text style={styles.formTitle}>
-            {editingId ? '✏️ Edit Contact' : '+ Add New Contact'}
+      {/* Page Title */}
+      <View style={styles.titleSection}>
+        <Text style={styles.pageTitle}>Guardian Network</Text>
+        <Text style={styles.pageSubtitle}>
+          Manage your circle of support and care
+        </Text>
+      </View>
+
+      <ScrollView
+        style={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* My Primary Device */}
+        <View style={styles.deviceCard}>
+          <View style={styles.deviceHeader}>
+            <View style={styles.deviceIconBg}>
+              <Ionicons name="phone-portrait" size={20} color={COLORS.primary} />
+            </View>
+            <Text style={styles.deviceTitle}>My Primary Device</Text>
+            {myPhoneSaved && (
+              <View style={styles.connectedBadge}>
+                <Ionicons name="checkmark-circle" size={14} color={COLORS.success} />
+                <Text style={styles.connectedText}>Connected</Text>
+              </View>
+            )}
+          </View>
+
+          <Text style={styles.devicePhone}>
+            {myPhoneSaved ? myPhone : "No number registered"}
+          </Text>
+          <Text style={styles.deviceHint}>
+            Required to receive SOS siren alerts from others
           </Text>
 
+          <View style={styles.phoneInputRow}>
+            <View style={styles.phoneInputWrapper}>
+              <Text style={styles.phonePrefix}>+1</Text>
+              <TextInput
+                style={styles.phoneInput}
+                placeholder="(555) 012-3456"
+                value={myPhoneInput}
+                onChangeText={setMyPhoneInput}
+                keyboardType="phone-pad"
+                placeholderTextColor={COLORS.textMutedLight}
+              />
+            </View>
+          </View>
+          <TouchableOpacity
+            style={[
+              styles.registerBtn,
+              myPhoneSaved && styles.registerBtnSaved,
+            ]}
+            onPress={saveMyPhone}
+          >
+            <Ionicons
+              name={myPhoneSaved ? "checkmark-circle" : "arrow-forward"}
+              size={20}
+              color={COLORS.textPrimary}
+            />
+            <Text style={styles.registerBtnText}>
+              {myPhoneSaved ? "Number Saved ✓" : "Register Now"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Add New Guardian */}
+        <View style={styles.formCard}>
+          <View style={styles.formTitleRow}>
+            <Ionicons name="person-add" size={20} color={COLORS.primary} />
+            <Text style={styles.formTitle}>
+              {editingId ? "Edit Guardian" : "Add New Guardian"}
+            </Text>
+          </View>
+
           <View style={styles.inputWrapper}>
-            <Ionicons name="person-outline" size={20} color="#9E9E9E" style={styles.inputIcon} />
+            <Ionicons
+              name="person-outline"
+              size={20}
+              color={COLORS.textMuted}
+              style={styles.inputIcon}
+            />
             <TextInput
               style={styles.input}
-              placeholder="Contact Name *"
+              placeholder="Full Name"
               value={name}
               onChangeText={setName}
-              placeholderTextColor="#BDBDBD"
+              placeholderTextColor={COLORS.textMutedLight}
             />
           </View>
 
           <View style={styles.inputWrapper}>
-            <Ionicons name="call-outline" size={20} color="#9E9E9E" style={styles.inputIcon} />
+            <Ionicons
+              name="heart-outline"
+              size={20}
+              color={COLORS.textMuted}
+              style={styles.inputIcon}
+            />
             <TextInput
               style={styles.input}
-              placeholder="Phone Number *"
+              placeholder="Relationship"
+              value={relationship}
+              onChangeText={setRelationship}
+              placeholderTextColor={COLORS.textMutedLight}
+            />
+          </View>
+
+          <View style={styles.inputWrapper}>
+            <Ionicons
+              name="call-outline"
+              size={20}
+              color={COLORS.textMuted}
+              style={styles.inputIcon}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Phone Number"
               value={phone}
               onChangeText={setPhone}
               keyboardType="phone-pad"
-              placeholderTextColor="#BDBDBD"
-            />
-          </View>
-
-          <View style={styles.inputWrapper}>
-            <Ionicons name="heart-outline" size={20} color="#9E9E9E" style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              placeholder="Relationship (optional)"
-              value={relationship}
-              onChangeText={setRelationship}
-              placeholderTextColor="#BDBDBD"
+              placeholderTextColor={COLORS.textMutedLight}
             />
           </View>
 
           <View style={styles.buttonRow}>
             {editingId && (
-              <TouchableOpacity style={styles.cancelButton} onPress={cancelEdit}>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={cancelEdit}
+              >
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
             )}
 
             <TouchableOpacity
-              style={[styles.addButton, editingId && styles.updateButton]}
+              style={[styles.saveButton, editingId && styles.updateButton]}
               onPress={addOrUpdateContact}
             >
               <Ionicons
-                name={editingId ? 'checkmark-circle' : 'add-circle'}
+                name={editingId ? "checkmark-circle" : "add-circle"}
                 size={22}
-                color="#FFFFFF"
+                color={COLORS.textPrimary}
               />
-              <Text style={styles.addButtonText}>
-                {editingId ? 'Update' : 'Add Contact'}
+              <Text style={styles.saveButtonText}>
+                {editingId ? "Update" : "Save Guardian"}
               </Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Contacts List */}
+        {/* Active Guardians */}
         <View style={styles.listSection}>
           {contacts.length === 0 ? (
             <View style={styles.emptyState}>
               <View style={styles.emptyIconBg}>
-                <Ionicons name="people-outline" size={48} color="#BDBDBD" />
+                <Ionicons name="people-outline" size={48} color={COLORS.textMutedLight} />
               </View>
-              <Text style={styles.emptyText}>No emergency contacts</Text>
+              <Text style={styles.emptyText}>No guardians yet</Text>
               <Text style={styles.emptySubtext}>
-                Add your first contact to get started
+                Add your first guardian to get started
               </Text>
             </View>
           ) : (
             <>
-              <Text style={styles.listTitle}>
-                Your Contacts ({contacts.length})
-              </Text>
+              <View style={styles.listHeader}>
+                <Text style={styles.listTitle}>Active Guardians</Text>
+                <View style={styles.fullGuardBadge}>
+                  <Text style={styles.fullGuardText}>Full Guard</Text>
+                </View>
+              </View>
               <FlatList
                 data={contacts}
                 renderItem={renderContact}
-                keyExtractor={item => item.id}
+                keyExtractor={(item) => item.id}
                 scrollEnabled={false}
               />
             </>
@@ -328,247 +470,367 @@ export default EmergencyContacts;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F6FA',
+    backgroundColor: COLORS.bgLightGrey,
   },
-  // Header
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 55,
-    paddingBottom: 16,
-    paddingHorizontal: 24,
-    backgroundColor: '#F5F6FA',
+
+  // Red Header Bar
+  headerBar: {
+    backgroundColor: COLORS.primary,
+    paddingTop: 50,
+    paddingBottom: SPACING.lg,
+    paddingHorizontal: SPACING.xxl,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
-  headerLabel: {
-    fontSize: 13,
-    color: '#E53935',
-    fontWeight: '700',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
+  headerBrand: {
+    ...TYPOGRAPHY.h1,
+    color: COLORS.textPrimary,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#1A1A2E',
-    marginTop: 2,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.md,
   },
   countBadge: {
-    backgroundColor: '#E53935',
+    backgroundColor: "rgba(255,255,255,0.2)",
     width: 36,
     height: 36,
     borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   countText: {
-    color: '#FFFFFF',
+    color: COLORS.textPrimary,
     fontSize: 16,
-    fontWeight: '800',
+    fontWeight: "800",
   },
   clearBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#FFEBEE',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(255,255,255,0.15)",
+    justifyContent: "center",
+    alignItems: "center",
   },
+
+  // Title Section
+  titleSection: {
+    backgroundColor: COLORS.primary,
+    paddingBottom: SPACING.xl,
+    paddingHorizontal: SPACING.xxl,
+    borderBottomLeftRadius: RADIUS.xl,
+    borderBottomRightRadius: RADIUS.xl,
+  },
+  pageTitle: {
+    ...TYPOGRAPHY.h1,
+    color: COLORS.textPrimary,
+    marginBottom: SPACING.xs,
+  },
+  pageSubtitle: {
+    ...TYPOGRAPHY.caption,
+    color: "rgba(255,255,255,0.7)",
+  },
+
   scrollContent: {
     flex: 1,
   },
-  // Form
+
+  // My Primary Device
+  deviceCard: {
+    marginHorizontal: SPACING.xl,
+    marginTop: SPACING.xl,
+    backgroundColor: COLORS.bgLight,
+    borderRadius: RADIUS.xl,
+    padding: SPACING.xl,
+    ...SHADOWS.md,
+  },
+  deviceHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: SPACING.md,
+  },
+  deviceIconBg: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.primaryBg,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: SPACING.sm,
+  },
+  deviceTitle: {
+    ...TYPOGRAPHY.h3,
+    color: COLORS.textDark,
+    flex: 1,
+  },
+  connectedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: COLORS.successLight,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    borderRadius: RADIUS.pill,
+  },
+  connectedText: {
+    ...TYPOGRAPHY.small,
+    color: COLORS.success,
+  },
+  devicePhone: {
+    ...TYPOGRAPHY.body,
+    color: COLORS.textDark,
+    fontWeight: "600",
+    marginBottom: SPACING.xs,
+  },
+  deviceHint: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textMuted,
+    marginBottom: SPACING.lg,
+  },
+  phoneInputRow: {
+    marginBottom: SPACING.md,
+  },
+  phoneInputWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.bgLightGrey,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: "#EEEEEE",
+    overflow: "hidden",
+  },
+  phonePrefix: {
+    ...TYPOGRAPHY.body,
+    fontWeight: "700",
+    color: COLORS.textDark,
+    paddingHorizontal: SPACING.lg,
+    borderRightWidth: 1,
+    borderRightColor: "#EEEEEE",
+    paddingVertical: SPACING.lg,
+  },
+  phoneInput: {
+    flex: 1,
+    height: 50,
+    ...TYPOGRAPHY.body,
+    color: COLORS.textDark,
+    paddingHorizontal: SPACING.lg,
+  },
+  registerBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.primary,
+    borderRadius: RADIUS.md,
+    paddingVertical: SPACING.lg,
+    gap: SPACING.sm,
+  },
+  registerBtnSaved: {
+    backgroundColor: COLORS.successDark,
+  },
+  registerBtnText: {
+    color: COLORS.textPrimary,
+    ...TYPOGRAPHY.body,
+    fontWeight: "700",
+  },
+
+  // Add New Guardian Form
   formCard: {
-    marginHorizontal: 20,
-    marginTop: 4,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 3,
+    marginHorizontal: SPACING.xl,
+    marginTop: SPACING.lg,
+    backgroundColor: COLORS.bgLight,
+    borderRadius: RADIUS.xl,
+    padding: SPACING.xl,
+    ...SHADOWS.md,
+  },
+  formTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.sm,
+    marginBottom: SPACING.lg,
   },
   formTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#1A1A2E',
-    marginBottom: 16,
+    ...TYPOGRAPHY.h3,
+    color: COLORS.textDark,
   },
   inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F5F6FA',
-    borderRadius: 14,
-    marginBottom: 12,
-    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.bgLightGrey,
+    borderRadius: RADIUS.md,
+    marginBottom: SPACING.md,
+    paddingHorizontal: SPACING.lg,
     borderWidth: 1,
-    borderColor: '#EEEEEE',
+    borderColor: "#EEEEEE",
   },
   inputIcon: {
-    marginRight: 12,
+    marginRight: SPACING.md,
   },
   input: {
     flex: 1,
     height: 50,
-    fontSize: 15,
-    color: '#1A1A2E',
+    ...TYPOGRAPHY.body,
+    color: COLORS.textDark,
   },
   buttonRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 10,
-    marginTop: 8,
+    marginTop: SPACING.sm,
   },
-  addButton: {
+  saveButton: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#E53935',
-    borderRadius: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.primary,
+    borderRadius: RADIUS.md,
     paddingVertical: 15,
-    gap: 8,
+    gap: SPACING.sm,
   },
   updateButton: {
-    backgroundColor: '#43A047',
+    backgroundColor: COLORS.successDark,
   },
   cancelButton: {
     flex: 0.4,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F5F5F5',
-    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.bgLightGrey,
+    borderRadius: RADIUS.md,
     paddingVertical: 15,
   },
-  addButtonText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700',
+  saveButtonText: {
+    color: COLORS.textPrimary,
+    ...TYPOGRAPHY.body,
+    fontWeight: "700",
   },
   cancelButtonText: {
-    color: '#757575',
-    fontSize: 15,
-    fontWeight: '600',
+    color: "#757575",
+    ...TYPOGRAPHY.body,
+    fontWeight: "600",
   },
-  // List
+
+  // Active Guardians List
   listSection: {
-    marginHorizontal: 20,
-    marginTop: 16,
-    marginBottom: 20,
+    marginHorizontal: SPACING.xl,
+    marginTop: SPACING.lg,
+    marginBottom: SPACING.xl,
+  },
+  listHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: SPACING.lg,
   },
   listTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#1A1A2E',
-    marginBottom: 14,
+    ...TYPOGRAPHY.h3,
+    color: COLORS.textDark,
+  },
+  fullGuardBadge: {
+    backgroundColor: COLORS.primaryBg,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+    borderRadius: RADIUS.pill,
+  },
+  fullGuardText: {
+    ...TYPOGRAPHY.small,
+    color: COLORS.primary,
   },
   contactCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2,
+    backgroundColor: COLORS.bgLight,
+    borderRadius: RADIUS.xl - 2,
+    padding: SPACING.lg,
+    marginBottom: SPACING.md,
+    ...SHADOWS.sm,
   },
   contactRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   avatar: {
     width: 50,
     height: 50,
     borderRadius: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   avatarText: {
     fontSize: 22,
-    fontWeight: '700',
-    color: '#FFFFFF',
+    fontWeight: "700",
+    color: COLORS.textPrimary,
   },
   contactDetails: {
     marginLeft: 14,
     flex: 1,
   },
   contactName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1A1A2E',
+    ...TYPOGRAPHY.body,
+    fontWeight: "700",
+    color: COLORS.textDark,
   },
   contactPhone: {
-    fontSize: 14,
-    color: '#9E9E9E',
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textMuted,
     marginTop: 2,
   },
   relationshipBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
     marginTop: 4,
   },
   relationshipText: {
-    fontSize: 12,
-    color: '#E53935',
-    fontWeight: '500',
+    ...TYPOGRAPHY.small,
+    color: COLORS.primary,
   },
   contactActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginTop: 14,
-    paddingTop: 14,
+    flexDirection: "row",
+    justifyContent: "space-around",
+    marginTop: SPACING.lg,
+    paddingTop: SPACING.lg,
     borderTopWidth: 1,
-    borderTopColor: '#F5F5F5',
+    borderTopColor: COLORS.divider,
   },
   actionBtn: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   callBtn: {
-    backgroundColor: '#E3F2FD',
+    backgroundColor: COLORS.infoLight,
   },
   smsBtn: {
-    backgroundColor: '#E8F5E9',
+    backgroundColor: COLORS.successLight,
   },
   editBtn: {
-    backgroundColor: '#FFF8E1',
+    backgroundColor: COLORS.warningLight,
   },
   deleteBtn: {
-    backgroundColor: '#FFEBEE',
+    backgroundColor: COLORS.dangerLight,
   },
+
   // Empty state
   emptyState: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingVertical: 40,
   },
   emptyIconBg: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: '#F5F5F5',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: COLORS.divider,
+    justifyContent: "center",
+    alignItems: "center",
   },
   emptyText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#9E9E9E',
-    marginTop: 16,
+    ...TYPOGRAPHY.h3,
+    color: COLORS.textMuted,
+    marginTop: SPACING.lg,
   },
   emptySubtext: {
-    fontSize: 14,
-    color: '#BDBDBD',
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textMutedLight,
     marginTop: 6,
   },
 });
