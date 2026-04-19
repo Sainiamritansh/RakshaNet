@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { COLORS, TYPOGRAPHY, RADIUS, SPACING, SHADOWS, ANIM } from '../src/theme';
+import { COLORS, TYPOGRAPHY, RADIUS, SPACING, ANIM } from '../src/theme';
 
 const { width } = Dimensions.get('window');
 
@@ -21,8 +21,6 @@ export default function SOSScreen({ navigation }) {
     const triangleScale = useRef(new Animated.Value(1)).current;
     const triangleOpacity = useRef(new Animated.Value(1)).current;
     const [elapsedSeconds, setElapsedSeconds] = useState(0);
-
-    // Alert status items
     const [alertStatus, setAlertStatus] = useState({
         smsSent: false,
         locationShared: false,
@@ -31,17 +29,14 @@ export default function SOSScreen({ navigation }) {
     });
 
     useEffect(() => {
-        // Vibrate on open
         Vibration.vibrate([0, 200, 100, 200, 100, 200]);
 
-        // Fade in
         Animated.timing(fadeAnim, {
             toValue: 1,
             duration: 300,
             useNativeDriver: true,
         }).start();
 
-        // Warning triangle scale pulse: 1.0 → 1.15 → 1.0 @ 1200ms, looping
         const scalePulse = Animated.loop(
             Animated.sequence([
                 Animated.timing(triangleScale, {
@@ -57,7 +52,6 @@ export default function SOSScreen({ navigation }) {
             ])
         );
 
-        // Warning triangle opacity flash: 1.0 → 0.4 → 1.0 @ 800ms, looping
         const opacityFlash = Animated.loop(
             Animated.sequence([
                 Animated.timing(triangleOpacity, {
@@ -76,12 +70,10 @@ export default function SOSScreen({ navigation }) {
         scalePulse.start();
         opacityFlash.start();
 
-        // Countdown timer (counts up from 0)
         const timer = setInterval(() => {
             setElapsedSeconds((prev) => prev + 1);
         }, 1000);
 
-        // Simulate status updates rolling in
         setTimeout(() => setAlertStatus((s) => ({ ...s, smsSent: true })), 800);
         setTimeout(() => setAlertStatus((s) => ({ ...s, locationShared: true })), 1500);
         setTimeout(() => setAlertStatus((s) => ({ ...s, broadcastActive: true })), 2200);
@@ -94,19 +86,12 @@ export default function SOSScreen({ navigation }) {
         };
     }, []);
 
-    const callEmergency = () => {
-        Vibration.vibrate(300);
-        Linking.openURL('tel:112');
-    };
-
     const cancelAlert = () => {
         Vibration.cancel();
         navigation.goBack();
     };
 
-    const formatTime = (seconds) => {
-        return seconds.toString().padStart(2, '0');
-    };
+    const formatTime = (seconds) => seconds.toString().padStart(2, '0');
 
     const statusItems = [
         { key: 'smsSent', label: 'Emergency SMS Sent', icon: 'chatbubble', active: alertStatus.smsSent },
@@ -118,25 +103,19 @@ export default function SOSScreen({ navigation }) {
     return (
         <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
             <StatusBar barStyle="light-content" backgroundColor={COLORS.primaryDark} />
-
             <LinearGradient
                 colors={[COLORS.primaryDark, '#2D0A0A', COLORS.bgDark]}
                 style={styles.gradient}
             >
-                {/* Header */}
                 <View style={styles.header}>
                     <Text style={styles.sosTitle}>SOS ACTIVE</Text>
                     <Text style={styles.sosSubtitle}>Help is being dispatched</Text>
                 </View>
 
-                {/* Countdown + Warning Triangle */}
                 <View style={styles.centerSection}>
-                    {/* Countdown circle */}
                     <View style={styles.countdownCircle}>
                         <Text style={styles.countdownNumber}>{formatTime(elapsedSeconds)}</Text>
                     </View>
-
-                    {/* Animated Warning Triangle */}
                     <Animated.View
                         style={[
                             styles.triangleContainer,
@@ -152,16 +131,11 @@ export default function SOSScreen({ navigation }) {
                     </Animated.View>
                 </View>
 
-                {/* Alert Status */}
                 <View style={styles.statusSection}>
                     <Text style={styles.statusTitle}>Alert Status</Text>
-
                     {statusItems.map((item) => (
                         <View key={item.key} style={styles.statusRow}>
-                            <View style={[
-                                styles.statusCheck,
-                                item.active && styles.statusCheckActive,
-                            ]}>
+                            <View style={[styles.statusCheck, item.active && styles.statusCheckActive]}>
                                 <Ionicons
                                     name={item.active ? "checkmark" : "hourglass-outline"}
                                     size={14}
@@ -174,17 +148,13 @@ export default function SOSScreen({ navigation }) {
                                 color={item.active ? COLORS.primary : 'rgba(255,255,255,0.3)'}
                                 style={{ marginRight: SPACING.sm }}
                             />
-                            <Text style={[
-                                styles.statusLabel,
-                                item.active && styles.statusLabelActive,
-                            ]}>
+                            <Text style={[styles.statusLabel, item.active && styles.statusLabelActive]}>
                                 {item.label}
                             </Text>
                         </View>
                     ))}
                 </View>
 
-                {/* Cancel Alert Button */}
                 <TouchableOpacity style={styles.cancelBtn} onPress={cancelAlert}>
                     <Ionicons name="close" size={22} color={COLORS.textPrimary} />
                     <Text style={styles.cancelText}>CANCEL ALERT</Text>
@@ -195,9 +165,7 @@ export default function SOSScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
+    container: { flex: 1 },
     gradient: {
         flex: 1,
         alignItems: 'center',
@@ -205,29 +173,15 @@ const styles = StyleSheet.create({
         paddingVertical: 60,
         paddingHorizontal: SPACING.xxl,
     },
-
-    // Header
-    header: {
-        alignItems: 'center',
-        gap: SPACING.sm,
-    },
+    header: { alignItems: 'center', gap: SPACING.sm },
     sosTitle: {
         ...TYPOGRAPHY.h1,
         fontSize: 32,
         color: COLORS.textPrimary,
         letterSpacing: 4,
     },
-    sosSubtitle: {
-        ...TYPOGRAPHY.caption,
-        color: COLORS.textSecondary,
-        letterSpacing: 1,
-    },
-
-    // Center — Countdown + Triangle
-    centerSection: {
-        alignItems: 'center',
-        gap: SPACING.xxl,
-    },
+    sosSubtitle: { ...TYPOGRAPHY.caption, color: COLORS.textSecondary, letterSpacing: 1 },
+    centerSection: { alignItems: 'center', gap: SPACING.xxl },
     countdownCircle: {
         width: 80,
         height: 80,
@@ -238,15 +192,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         backgroundColor: 'rgba(229, 57, 53, 0.1)',
     },
-    countdownNumber: {
-        ...TYPOGRAPHY.h1,
-        fontSize: 32,
-        color: COLORS.primary,
-    },
-    triangleContainer: {
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
+    countdownNumber: { ...TYPOGRAPHY.h1, fontSize: 32, color: COLORS.primary },
+    triangleContainer: { alignItems: 'center', justifyContent: 'center' },
     triangleBg: {
         width: 120,
         height: 120,
@@ -255,17 +202,8 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-
-    // Alert Status
-    statusSection: {
-        width: '100%',
-        gap: SPACING.md,
-    },
-    statusTitle: {
-        ...TYPOGRAPHY.h3,
-        color: COLORS.textPrimary,
-        marginBottom: SPACING.sm,
-    },
+    statusSection: { width: '100%', gap: SPACING.md },
+    statusTitle: { ...TYPOGRAPHY.h3, color: COLORS.textPrimary, marginBottom: SPACING.sm },
     statusRow: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -286,20 +224,9 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginRight: SPACING.md,
     },
-    statusCheckActive: {
-        backgroundColor: COLORS.success,
-        borderColor: COLORS.success,
-    },
-    statusLabel: {
-        ...TYPOGRAPHY.body,
-        color: 'rgba(255,255,255,0.4)',
-        flex: 1,
-    },
-    statusLabelActive: {
-        color: COLORS.textPrimary,
-    },
-
-    // Cancel Button
+    statusCheckActive: { backgroundColor: COLORS.success, borderColor: COLORS.success },
+    statusLabel: { ...TYPOGRAPHY.body, color: 'rgba(255,255,255,0.4)', flex: 1 },
+    statusLabelActive: { color: COLORS.textPrimary },
     cancelBtn: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -311,10 +238,5 @@ const styles = StyleSheet.create({
         width: '100%',
         gap: SPACING.sm,
     },
-    cancelText: {
-        ...TYPOGRAPHY.body,
-        fontWeight: '800',
-        color: COLORS.textPrimary,
-        letterSpacing: 2,
-    },
+    cancelText: { ...TYPOGRAPHY.body, fontWeight: '800', color: COLORS.textPrimary, letterSpacing: 2 },
 });

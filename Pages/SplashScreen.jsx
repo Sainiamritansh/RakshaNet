@@ -8,7 +8,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, TYPOGRAPHY, RADIUS } from '../src/theme';
+import { COLORS, TYPOGRAPHY } from '../src/theme';
 
 const { width } = Dimensions.get('window');
 
@@ -20,7 +20,6 @@ export default function SplashScreen({ navigation }) {
   const screenOpacity = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    // Animate logo in
     Animated.parallel([
       Animated.spring(logoScale, {
         toValue: 1,
@@ -35,7 +34,6 @@ export default function SplashScreen({ navigation }) {
       }),
     ]).start();
 
-    // Animate text after logo
     setTimeout(() => {
       Animated.timing(textOpacity, {
         toValue: 1,
@@ -44,7 +42,6 @@ export default function SplashScreen({ navigation }) {
       }).start();
     }, 400);
 
-    // Animate loading bar
     setTimeout(() => {
       Animated.timing(barWidth, {
         toValue: 1,
@@ -53,7 +50,6 @@ export default function SplashScreen({ navigation }) {
       }).start();
     }, 600);
 
-    // Navigate after delay
     setTimeout(() => {
       Animated.timing(screenOpacity, {
         toValue: 0,
@@ -68,11 +64,7 @@ export default function SplashScreen({ navigation }) {
   return (
     <Animated.View style={[styles.container, { opacity: screenOpacity }]}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.bgDark} />
-
-      {/* Top spacer */}
       <View style={styles.spacer} />
-
-      {/* Logo Section */}
       <View style={styles.centerContent}>
         <Animated.View
           style={[
@@ -89,14 +81,10 @@ export default function SplashScreen({ navigation }) {
             </View>
           </View>
         </Animated.View>
-
-        {/* App Name */}
         <Animated.View style={[styles.textContainer, { opacity: textOpacity }]}>
           <Text style={styles.appName}>RakshaNet</Text>
         </Animated.View>
       </View>
-
-      {/* Bottom loading bar */}
       <View style={styles.bottomSection}>
         <View style={styles.loadingBarTrack}>
           <Animated.View
@@ -123,16 +111,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  spacer: {
-    height: 80,
-  },
+  spacer: { height: 80 },
   centerContent: {
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logoContainer: {
-    marginBottom: 32,
-  },
+  logoContainer: { marginBottom: 32 },
   shieldOuter: {
     width: 140,
     height: 140,
@@ -149,9 +133,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  textContainer: {
-    alignItems: 'center',
-  },
+  textContainer: { alignItems: 'center' },
   appName: {
     ...TYPOGRAPHY.h1,
     fontSize: 36,

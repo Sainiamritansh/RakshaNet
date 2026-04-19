@@ -1,0 +1,1138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Raksha-Net — Architecture Graph</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+    <style>
+        *, *::before, *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-card: #16161f;
+            --bg-card-hover: #1c1c28;
+            --bg-elevated: #1e1e2a;
+            --border: #2a2a3a;
+            --border-glow: #E5393544;
+            --text-primary: #f0f0f5;
+            --text-secondary: #9898b0;
+            --text-muted: #5a5a78;
+            --accent: #E53935;
+            --accent-light: #FF6F61;
+            --accent-dark: #B71C1C;
+            --accent-glow: #E5393530;
+            --success: #4CAF50;
+            --info: #42A5F5;
+            --warning: #FFA726;
+            --gradient-1: linear-gradient(135deg, #E53935 0%, #FF6F61 100%);
+            --gradient-2: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            --gradient-hero: linear-gradient(160deg, #0a0a0f 0%, #1a0a0a 30%, #0a0a0f 100%);
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.7;
+            overflow-x: hidden;
+        }
+
+        /* ─── Scrollbar ─── */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg-primary); }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+        /* ─── Ambient Background ─── */
+        .ambient-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            overflow: hidden;
+        }
+
+        .ambient-orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(120px);
+            opacity: 0.15;
+            animation: float 20s ease-in-out infinite;
+        }
+
+        .ambient-orb:nth-child(1) {
+            width: 600px;
+            height: 600px;
+            background: var(--accent);
+            top: -200px;
+            right: -100px;
+            animation-delay: 0s;
+        }
+
+        .ambient-orb:nth-child(2) {
+            width: 400px;
+            height: 400px;
+            background: #7C4DFF;
+            bottom: -100px;
+            left: -100px;
+            animation-delay: -7s;
+        }
+
+        .ambient-orb:nth-child(3) {
+            width: 300px;
+            height: 300px;
+            background: var(--info);
+            top: 50%;
+            left: 50%;
+            animation-delay: -14s;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(30px, -40px) scale(1.05); }
+            66% { transform: translate(-20px, 20px) scale(0.95); }
+        }
+
+        /* ─── Hero Section ─── */
+        .hero {
+            background: var(--gradient-hero);
+            padding: 80px 40px 60px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: radial-gradient(circle at 50% 80%, var(--accent-glow) 0%, transparent 60%);
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 20px;
+            background: var(--accent-glow);
+            border: 1px solid var(--border-glow);
+            border-radius: 100px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--accent-light);
+            margin-bottom: 28px;
+            position: relative;
+            z-index: 1;
+            letter-spacing: 0.5px;
+        }
+
+        .hero-badge .pulse-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent);
+            animation: pulse-dot 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.3); }
+        }
+
+        .hero h1 {
+            font-size: 56px;
+            font-weight: 900;
+            letter-spacing: -2px;
+            line-height: 1.1;
+            position: relative;
+            z-index: 1;
+            margin-bottom: 16px;
+        }
+
+        .hero h1 .gradient-text {
+            background: var(--gradient-1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero p {
+            font-size: 18px;
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+            font-weight: 400;
+        }
+
+        .hero-stats {
+            display: flex;
+            justify-content: center;
+            gap: 48px;
+            margin-top: 48px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero-stat {
+            text-align: center;
+        }
+
+        .hero-stat .number {
+            font-size: 32px;
+            font-weight: 800;
+            color: var(--text-primary);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .hero-stat .label {
+            font-size: 13px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 4px;
+        }
+
+        /* ─── Navigation ─── */
+        .graph-nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(10, 10, 15, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            padding: 0 40px;
+        }
+
+        .nav-inner {
+            display: flex;
+            gap: 4px;
+            overflow-x: auto;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 12px 0;
+        }
+
+        .nav-btn {
+            padding: 10px 20px;
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 13px;
+            font-weight: 600;
+            font-family: 'Inter', sans-serif;
+            cursor: pointer;
+            border-radius: 8px;
+            white-space: nowrap;
+            transition: all 0.2s ease;
+            letter-spacing: 0.2px;
+        }
+
+        .nav-btn:hover {
+            background: var(--bg-elevated);
+            color: var(--text-primary);
+        }
+
+        .nav-btn.active {
+            background: var(--accent);
+            color: white;
+            box-shadow: 0 4px 16px var(--accent-glow);
+        }
+
+        /* ─── Content ─── */
+        .content {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 40px;
+        }
+
+        /* ─── Section ─── */
+        .section {
+            margin-bottom: 64px;
+            animation: fadeInUp 0.6s ease both;
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+
+        .section-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            flex-shrink: 0;
+        }
+
+        .section-icon.red { background: #E5393518; border: 1px solid #E5393530; }
+        .section-icon.blue { background: #42A5F518; border: 1px solid #42A5F530; }
+        .section-icon.green { background: #4CAF5018; border: 1px solid #4CAF5030; }
+        .section-icon.purple { background: #7C4DFF18; border: 1px solid #7C4DFF30; }
+        .section-icon.orange { background: #FFA72618; border: 1px solid #FFA72630; }
+        .section-icon.teal { background: #26A69A18; border: 1px solid #26A69A30; }
+
+        .section-title {
+            font-size: 28px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+        }
+
+        .section-subtitle {
+            font-size: 14px;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        /* ─── Diagram Card ─── */
+        .diagram-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 32px;
+            overflow: hidden;
+            position: relative;
+            transition: border-color 0.3s ease;
+        }
+
+        .diagram-card:hover {
+            border-color: var(--border-glow);
+        }
+
+        .diagram-card .mermaid {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 300px;
+        }
+
+        .diagram-card .mermaid svg {
+            max-width: 100%;
+            height: auto;
+        }
+
+        /* ─── Split Layout ─── */
+        .split-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+
+        .split-grid .diagram-card {
+            min-height: 400px;
+        }
+
+        /* ─── Table Styles ─── */
+        .table-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            overflow: hidden;
+        }
+
+        .table-card table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .table-card thead {
+            background: var(--bg-elevated);
+        }
+
+        .table-card th {
+            padding: 14px 20px;
+            text-align: left;
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .table-card td {
+            padding: 14px 20px;
+            font-size: 14px;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border);
+            vertical-align: top;
+        }
+
+        .table-card tr:last-child td {
+            border-bottom: none;
+        }
+
+        .table-card tr:hover td {
+            background: var(--bg-card-hover);
+        }
+
+        .file-name {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--accent-light);
+        }
+
+        .file-size {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            color: var(--text-muted);
+            background: var(--bg-elevated);
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        .dep-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            font-family: 'JetBrains Mono', monospace;
+            margin: 2px 4px 2px 0;
+        }
+
+        .dep-badge.nav { background: #7C4DFF18; color: #B388FF; border: 1px solid #7C4DFF30; }
+        .dep-badge.firebase { background: #FFA72618; color: #FFB74D; border: 1px solid #FFA72630; }
+        .dep-badge.location { background: #4CAF5018; color: #81C784; border: 1px solid #4CAF5030; }
+        .dep-badge.camera { background: #42A5F518; color: #90CAF9; border: 1px solid #42A5F530; }
+        .dep-badge.security { background: #E5393518; color: #EF9A9A; border: 1px solid #E5393530; }
+        .dep-badge.network { background: #26A69A18; color: #80CBC4; border: 1px solid #26A69A30; }
+        .dep-badge.storage { background: #78909C18; color: #B0BEC5; border: 1px solid #78909C30; }
+        .dep-badge.device { background: #EC407A18; color: #F48FB1; border: 1px solid #EC407A30; }
+        .dep-badge.ui { background: #AB47BC18; color: #CE93D8; border: 1px solid #AB47BC30; }
+
+        /* ─── Responsive ─── */
+        @media (max-width: 900px) {
+            .hero h1 { font-size: 36px; }
+            .hero-stats { gap: 24px; flex-wrap: wrap; }
+            .split-grid { grid-template-columns: 1fr; }
+            .content { padding: 20px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="ambient-bg">
+        <div class="ambient-orb"></div>
+        <div class="ambient-orb"></div>
+        <div class="ambient-orb"></div>
+    </div>
+
+    <!-- ─── Hero ─── -->
+    <section class="hero">
+        <div class="hero-badge">
+            <span class="pulse-dot"></span>
+            ARCHITECTURE GRAPH
+        </div>
+        <h1>🛡️ <span class="gradient-text">Raksha-Net</span></h1>
+        <p>React Native personal safety platform with SOS emergency alerts, real-time location sharing, spam/scam detection, and community-driven threat reporting.</p>
+        <div class="hero-stats">
+            <div class="hero-stat">
+                <div class="number">35+</div>
+                <div class="label">Source Files</div>
+            </div>
+            <div class="hero-stat">
+                <div class="number">8</div>
+                <div class="label">Screens</div>
+            </div>
+            <div class="hero-stat">
+                <div class="number">16</div>
+                <div class="label">Services</div>
+            </div>
+            <div class="hero-stat">
+                <div class="number">46</div>
+                <div class="label">Dependencies</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ─── Navigation ─── -->
+    <nav class="graph-nav">
+        <div class="nav-inner">
+            <button class="nav-btn active" onclick="scrollToSection('system-arch')">System Architecture</button>
+            <button class="nav-btn" onclick="scrollToSection('module-deps')">Module Dependencies</button>
+            <button class="nav-btn" onclick="scrollToSection('sos-flow')">SOS Pipeline</button>
+            <button class="nav-btn" onclick="scrollToSection('spam-flow')">Spam Shield Flow</button>
+            <button class="nav-btn" onclick="scrollToSection('nav-structure')">Navigation</button>
+            <button class="nav-btn" onclick="scrollToSection('data-model')">Data Model</button>
+            <button class="nav-btn" onclick="scrollToSection('native-bridge')">Native Bridge</button>
+            <button class="nav-btn" onclick="scrollToSection('file-inventory')">File Inventory</button>
+            <button class="nav-btn" onclick="scrollToSection('dependencies')">Dependencies</button>
+        </div>
+    </nav>
+
+    <!-- ─── Content ─── -->
+    <div class="content">
+
+        <!-- 1. System Architecture -->
+        <section id="system-arch" class="section">
+            <div class="section-header">
+                <div class="section-icon red">🏗️</div>
+                <div>
+                    <div class="section-title">System Architecture</div>
+                    <div class="section-subtitle">High-level topology — Client, Native Modules, Cloud Backend</div>
+                </div>
+            </div>
+            <div class="diagram-card">
+                <pre class="mermaid">
+graph TB
+    subgraph CLIENT["📱 React Native Client"]
+        direction TB
+        APP["App.jsx<br/><i>Root Navigator</i>"]
+        PAGES["Pages Layer<br/><i>8 screens</i>"]
+        COMPONENTS["Components<br/><i>Header, Body, Footer</i>"]
+        SERVICES["Services Layer<br/><i>16 modules</i>"]
+        CONTEXT["Context Layer<br/><i>MarkersContext</i>"]
+        THEME["Design System<br/><i>theme.js</i>"]
+    end
+
+    subgraph NATIVE["🤖 Android Native Modules"]
+        direction TB
+        SMS_MOD["SMSModule<br/><i>Java</i>"]
+        SMS_RCV["SMSReceiver<br/><i>BroadcastReceiver</i>"]
+        SOS_MOD["SOSNativeModule<br/><i>Java</i>"]
+        SOS_ACC["SOSAccessibilityService<br/><i>AccessibilityService</i>"]
+    end
+
+    subgraph BACKEND["☁️ Cloud Backend"]
+        direction TB
+        FIREBASE["Firebase<br/><i>Firestore + Auth</i>"]
+        FCM["Cloud Messaging<br/><i>FCM</i>"]
+        CLOUD_FN["Cloud Functions<br/><i>sendSOSSiren</i>"]
+        SAFE_BROWSE["Safe Browsing<br/><i>Google API</i>"]
+        GMAPS["Google Maps API"]
+        SOCKET_SRV["Socket.IO<br/><i>Render</i>"]
+    end
+
+    APP --> PAGES
+    APP --> SERVICES
+    APP --> CONTEXT
+    PAGES --> COMPONENTS
+    PAGES --> SERVICES
+    PAGES --> THEME
+    SERVICES --> FIREBASE
+    SERVICES --> FCM
+    SERVICES --> SAFE_BROWSE
+    SERVICES --> SOCKET_SRV
+    SERVICES -.->|NativeBridge| SMS_MOD
+    SERVICES -.->|NativeBridge| SOS_MOD
+    SMS_MOD --> SMS_RCV
+    SOS_MOD --> SOS_ACC
+    CLOUD_FN -.->|Firestore Trigger| FCM
+    FIREBASE -.-> CLOUD_FN
+    PAGES --> GMAPS
+                </pre>
+            </div>
+        </section>
+
+        <!-- 2. Module Dependencies -->
+        <section id="module-deps" class="section">
+            <div class="section-header">
+                <div class="section-icon blue">🔗</div>
+                <div>
+                    <div class="section-title">Module Dependencies</div>
+                    <div class="section-subtitle">Import graph across all source files</div>
+                </div>
+            </div>
+            <div class="diagram-card">
+                <pre class="mermaid">
+graph LR
+    subgraph ENTRY["Entry"]
+        IDX["index.js"]
+        APP["App.jsx"]
+    end
+
+    subgraph PAGES["Pages"]
+        SPLASH["SplashScreen"]
+        HOME["Home"]
+        LOC["Location"]
+        WEATHER["Weather"]
+        CONTACTS["Emergency<br/>Contacts"]
+        SOS["SOSScreen"]
+        SCANNER["ScamScanner"]
+        SHIELD["SpamShield"]
+    end
+
+    subgraph SERVICES["Services"]
+        FB["firebase.js"]
+        SOCK["socket.js"]
+        NOTIF["Notification.js"]
+        VOL["useVolume<br/>Shortcut"]
+        SMS_SVC["SMSMonitor"]
+        SPAM_CHK["SpamChecker"]
+        SCAM_CHK["ScamChecker"]
+        LINK_BLK["LinkBlocker"]
+        COMM_RPT["Community<br/>Reports"]
+        SOS_BG["SOSBackground<br/>Service"]
+        SOS_SIREN["SOSSiren<br/>Service"]
+        SOS_RCV["SOSSiren<br/>Receiver"]
+        SOS_VID["SOSVideo<br/>Recorder"]
+    end
+
+    subgraph CTX["Context"]
+        MARKERS["MarkersContext"]
+    end
+
+    IDX --> APP
+    APP --> SPLASH & HOME & LOC & WEATHER
+    APP --> CONTACTS & SOS & SCANNER & SHIELD
+    APP --> FB & SOCK & NOTIF & VOL
+    APP --> SMS_SVC & SOS_BG & SOS_SIREN & SOS_RCV
+    APP --> MARKERS
+
+    HOME --> SOS_VID
+
+    SMS_SVC --> FB & SPAM_CHK & LINK_BLK
+    SPAM_CHK --> FB
+    COMM_RPT --> FB
+    SOS_VID --> FB & SOCK
+                </pre>
+            </div>
+        </section>
+
+        <!-- 3. SOS Pipeline -->
+        <section id="sos-flow" class="section">
+            <div class="section-header">
+                <div class="section-icon red">🚨</div>
+                <div>
+                    <div class="section-title">SOS Emergency Pipeline</div>
+                    <div class="section-subtitle">Volume shortcut → Siren → SMS → Video → FCM push notification</div>
+                </div>
+            </div>
+            <div class="diagram-card">
+                <pre class="mermaid">
+sequenceDiagram
+    participant U as 👤 User
+    participant VOL as 🔊 VolumeShortcut
+    participant APP as 📱 App.jsx
+    participant SOS as 🚨 SOSScreen
+    participant CAM as 📹 Camera
+    participant LOC as 📍 Location API
+    participant SMS as 💬 SMS / Linking
+    participant SOCK as 🌐 Socket.IO
+    participant SIREN as 🔔 SOSSirenService
+    participant FS as 🗄️ Firestore
+    participant CF as ⚡ Cloud Function
+    participant FCM as 📲 FCM Push
+
+    U->>VOL: Press Volume Down ×3
+    VOL->>APP: onTriggered()
+    APP->>SOS: navigate("SOS")
+    activate SOS
+    SOS->>SOS: playSiren() 🔊
+    SOS->>CAM: recordAsync(60s) 📹
+    SOS->>LOC: getCurrentPositionAsync()
+    LOC-->>SOS: {lat, lon}
+    SOS->>SMS: openURL(sms:contacts)
+    SOS->>SOCK: emit("send_distress")
+    SOS->>SIREN: triggerSOSSiren()
+    SIREN->>FS: sos_alerts.add()
+    SIREN->>FS: siren_triggers.add()
+    FS-->>CF: onCreate trigger
+    CF->>FCM: sendEachForMulticast()
+    FCM-->>U: 🚨 Push Notification
+    deactivate SOS
+                </pre>
+            </div>
+        </section>
+
+        <!-- 4. Spam Shield Flow -->
+        <section id="spam-flow" class="section">
+            <div class="section-header">
+                <div class="section-icon green">🛡️</div>
+                <div>
+                    <div class="section-title">Spam/Scam Shield Pipeline</div>
+                    <div class="section-subtitle">Native SMS receive → Analysis → Link check → Notification</div>
+                </div>
+            </div>
+            <div class="diagram-card">
+                <pre class="mermaid">
+graph LR
+    subgraph NATIVE["Native Layer"]
+        A["SMSReceiver"] --> B["SMSModule"]
+    end
+
+    subgraph ANALYSIS["Analysis Engine"]
+        C["SMSMonitor"] --> D["Check Blocklist"]
+        D --> E["SpamChecker"]
+        E --> F["analyzeMessage"]
+        F --> G["Firebase SpamDB"]
+        G --> H["Score + Confidence"]
+    end
+
+    subgraph LINKS["Link Safety"]
+        I["LinkBlocker"] --> J["extractLinks"]
+        J --> K["processMessageLinks"]
+        K --> L["Google Safe Browsing"]
+    end
+
+    subgraph OUTPUT["Output"]
+        M["saveToHistory"]
+        N["Push Notification"]
+        O["Block Number"]
+    end
+
+    B -->|NativeEvent| C
+    H --> I
+    H --> M
+    L --> M
+    M --> N
+    L -->|dangerous| O
+                </pre>
+            </div>
+        </section>
+
+        <!-- 5. Navigation Structure -->
+        <section id="nav-structure" class="section">
+            <div class="section-header">
+                <div class="section-icon purple">🧭</div>
+                <div>
+                    <div class="section-title">Navigation Structure</div>
+                    <div class="section-subtitle">Stack Navigator + Bottom Tab Navigator hierarchy</div>
+                </div>
+            </div>
+            <div class="diagram-card">
+                <pre class="mermaid">
+graph TD
+    ROOT["🏠 Stack.Navigator<br/><i>Root</i>"]
+    SPLASH["✨ SplashScreen<br/><i>fade animation</i>"]
+    MAIN["📱 MainTabs<br/><i>Bottom Tab Navigator</i>"]
+    SOS_MODAL["🚨 SOSScreen<br/><i>fullScreenModal</i>"]
+
+    ROOT --> SPLASH
+    ROOT --> MAIN
+    ROOT --> SOS_MODAL
+
+    MAIN --> H["🛡️ Home<br/><i>Dashboard + SOS trigger</i>"]
+    MAIN --> L["📍 Location<br/><i>Map + markers</i>"]
+    MAIN --> W["🌤️ Info<br/><i>Weather display</i>"]
+    MAIN --> C["👥 Contacts<br/><i>Emergency contacts</i>"]
+    MAIN --> SC["🔍 Scanner<br/><i>Scam analysis</i>"]
+    MAIN --> SH["🛡️ Shield<br/><i>Spam monitor</i>"]
+
+    style SOS_MODAL fill:#7F1D1D,color:#fff,stroke:#E53935
+    style SPLASH fill:#121212,color:#fff,stroke:#333
+    style ROOT fill:#1a1a2e,color:#fff,stroke:#42A5F5
+    style MAIN fill:#16213e,color:#fff,stroke:#42A5F5
+                </pre>
+            </div>
+        </section>
+
+        <!-- 6. Data Model -->
+        <section id="data-model" class="section">
+            <div class="section-header">
+                <div class="section-icon orange">🗄️</div>
+                <div>
+                    <div class="section-title">Firestore Data Model</div>
+                    <div class="section-subtitle">6 collections — SOS alerts, spam reports, contacts, tokens</div>
+                </div>
+            </div>
+            <div class="diagram-card">
+                <pre class="mermaid">
+erDiagram
+    emergencyContacts {
+        string id PK
+        string name
+        string phone
+        string relationship
+    }
+
+    spamReports {
+        string id PK
+        string number
+        string messagePreview
+        timestamp timestamp
+        object location
+        string reportedBy
+    }
+
+    communityReports {
+        string id PK
+        string number
+        string messagePreview
+        string category
+        string userNote
+        timestamp timestamp
+        object location
+    }
+
+    sos_alerts {
+        string id PK
+        string senderName
+        string senderPhone
+        string location
+        array contactPhones
+        timestamp timestamp
+        boolean resolved
+    }
+
+    siren_triggers {
+        string id PK
+        string alertId FK
+        array tokens
+        string senderName
+        string senderPhone
+        timestamp timestamp
+        boolean sent
+    }
+
+    user_fcm_tokens {
+        string phoneNumber PK
+        string token
+        timestamp updatedAt
+    }
+
+    sos_alerts ||--o{ siren_triggers : "triggers"
+    user_fcm_tokens }o--|| siren_triggers : "token lookup"
+                </pre>
+            </div>
+        </section>
+
+        <!-- 7. Native Bridge -->
+        <section id="native-bridge" class="section">
+            <div class="section-header">
+                <div class="section-icon teal">🌉</div>
+                <div>
+                    <div class="section-title">Native Bridge Architecture</div>
+                    <div class="section-subtitle">JavaScript ↔ Java/Kotlin mapping for SMS and SOS packages</div>
+                </div>
+            </div>
+            <div class="diagram-card">
+                <pre class="mermaid">
+graph TD
+    subgraph JS["JavaScript Layer"]
+        SOS_BG["SOSBackgroundService.js"]
+        SMS_MON["SMSMonitor.js"]
+    end
+
+    subgraph BRIDGE["React Native Bridge"]
+        NM["NativeModules"]
+        NE["NativeEventEmitter"]
+    end
+
+    subgraph NATIVE["Android Native - Java/Kotlin"]
+        subgraph SOS_PKG["SOSPackage"]
+            SOS_NAT["SOSNativeModule.java"]
+            SOS_ACC["SOSAccessibilityService.java"]
+        end
+        subgraph SMS_PKG["SMSPackage"]
+            SMS_NAT["SMSModule.java"]
+            SMS_RCV["SMSReceiver.java"]
+        end
+        MAIN_APP["MainApplication.kt"]
+    end
+
+    SOS_BG -->|"syncContacts()<br/>checkSOSIntent()<br/>openAccessibilitySettings()<br/>isServiceEnabled()"| NM
+    SMS_MON -->|"startSMSListener()<br/>stopSMSListener()<br/>getRecentSMS()"| NM
+    NM --> SOS_NAT
+    NM --> SMS_NAT
+    SMS_NAT -->|"onSMSReceived event"| NE
+    NE --> SMS_MON
+    SOS_NAT --> SOS_ACC
+    SMS_NAT --> SMS_RCV
+    MAIN_APP -->|registerPackage| SOS_PKG
+    MAIN_APP -->|registerPackage| SMS_PKG
+                </pre>
+            </div>
+        </section>
+
+        <!-- 8. File Inventory -->
+        <section id="file-inventory" class="section">
+            <div class="section-header">
+                <div class="section-icon blue">📁</div>
+                <div>
+                    <div class="section-title">File Inventory</div>
+                    <div class="section-subtitle">Complete source file listing with sizes and descriptions</div>
+                </div>
+            </div>
+
+            <!-- Pages -->
+            <h3 style="color: var(--accent-light); margin-bottom: 12px; font-size: 16px;">📄 Pages (8 screens)</h3>
+            <div class="table-card" style="margin-bottom: 32px;">
+                <table>
+                    <thead>
+                        <tr><th>File</th><th>Size</th><th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><span class="file-name">ScamScanner.jsx</span></td><td><span class="file-size">29 KB</span></td><td>Manual number/message scam analysis with community reports</td></tr>
+                        <tr><td><span class="file-name">Home.jsx</span></td><td><span class="file-size">28 KB</span></td><td>Main dashboard with SOS trigger, quick actions, status widgets</td></tr>
+                        <tr><td><span class="file-name">SpamShield.jsx</span></td><td><span class="file-size">19 KB</span></td><td>Real-time SMS spam monitoring, blocklist, history</td></tr>
+                        <tr><td><span class="file-name">EmergencyContacts.jsx</span></td><td><span class="file-size">19 KB</span></td><td>Emergency contact management (Firestore + AsyncStorage)</td></tr>
+                        <tr><td><span class="file-name">Location.jsx</span></td><td><span class="file-size">10 KB</span></td><td>Google Maps with distress/helper markers</td></tr>
+                        <tr><td><span class="file-name">SOSScreen.jsx</span></td><td><span class="file-size">9 KB</span></td><td>Full-screen emergency mode (siren, SMS, video, broadcast)</td></tr>
+                        <tr><td><span class="file-name">Weather.jsx</span></td><td><span class="file-size">7 KB</span></td><td>Weather / info display</td></tr>
+                        <tr><td><span class="file-name">SplashScreen.jsx</span></td><td><span class="file-size">4 KB</span></td><td>Animated splash / loading screen</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Services -->
+            <h3 style="color: var(--success); margin-bottom: 12px; font-size: 16px;">⚙️ Services (16 modules)</h3>
+            <div class="table-card" style="margin-bottom: 32px;">
+                <table>
+                    <thead>
+                        <tr><th>File</th><th>Size</th><th>Purpose</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><span class="file-name">SMSMonitor.js</span></td><td><span class="file-size">12 KB</span></td><td>SMS listener orchestrator — blocklist, spam analysis, link checking, Firebase reporting</td></tr>
+                        <tr><td><span class="file-name">SOSVideoRecorder.js</span></td><td><span class="file-size">9 KB</span></td><td>Camera-based emergency video recording with save-to-device</td></tr>
+                        <tr><td><span class="file-name">ScamChecker.js</span></td><td><span class="file-size">8 KB</span></td><td>Number pattern analysis + message content scanning for manual scanner</td></tr>
+                        <tr><td><span class="file-name">SpamChecker.js</span></td><td><span class="file-size">7 KB</span></td><td>Spam detection — keywords, URLs, CAPS, personal info, Firebase DB lookup</td></tr>
+                        <tr><td><span class="file-name">CommunityReports.js</span></td><td><span class="file-size">6 KB</span></td><td>Firestore CRUD for community scam reports, real-time subscriptions</td></tr>
+                        <tr><td><span class="file-name">LinkBlocker.js</span></td><td><span class="file-size">5 KB</span></td><td>Link extraction, quick safety check, Google Safe Browsing API</td></tr>
+                        <tr><td><span class="file-name">SOSSirenService.js</span></td><td><span class="file-size">4 KB</span></td><td>Triggers SOS siren via Firestore → Cloud Function → FCM push</td></tr>
+                        <tr><td><span class="file-name">cloud-functions-index.js</span></td><td><span class="file-size">4 KB</span></td><td>Firebase Cloud Function — Firestore trigger → FCM notifications</td></tr>
+                        <tr><td><span class="file-name">SOSSirenReceiver.js</span></td><td><span class="file-size">4 KB</span></td><td>React hook — receives SOS push, activates siren + vibration</td></tr>
+                        <tr><td><span class="file-name">SOSBackgroundService.js</span></td><td><span class="file-size">2 KB</span></td><td>Native bridge to SOS AccessibilityService</td></tr>
+                        <tr><td><span class="file-name">BleManager.js</span></td><td><span class="file-size">2 KB</span></td><td>BLE broadcasting/scanning for nearby distress signals</td></tr>
+                        <tr><td><span class="file-name">useVolumeShortcut.js</span></td><td><span class="file-size">2 KB</span></td><td>Hook — volume down ×3 within 2s triggers SOS</td></tr>
+                        <tr><td><span class="file-name">Notification.js</span></td><td><span class="file-size">2 KB</span></td><td>Expo notification permissions + scheduling</td></tr>
+                        <tr><td><span class="file-name">NearbyPermission.js</span></td><td><span class="file-size">1 KB</span></td><td>BLE/location permission management</td></tr>
+                        <tr><td><span class="file-name">firebase.js</span></td><td><span class="file-size">1 KB</span></td><td>Firebase Web SDK init (auth + Firestore)</td></tr>
+                        <tr><td><span class="file-name">socket.js</span></td><td><span class="file-size">125 B</span></td><td>Socket.IO client → Render backend</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Native Code -->
+            <h3 style="color: var(--info); margin-bottom: 12px; font-size: 16px;">🤖 Native Android (8 files)</h3>
+            <div class="table-card">
+                <table>
+                    <thead>
+                        <tr><th>File</th><th>Purpose</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><span class="file-name">SOSAccessibilityService.java</span></td><td>Android AccessibilityService for background volume-key SOS trigger (10 KB)</td></tr>
+                        <tr><td><span class="file-name">SMSModule.java</span></td><td>Native SMS listener — start/stop/getRecentSMS (5 KB)</td></tr>
+                        <tr><td><span class="file-name">SOSNativeModule.java</span></td><td>Native SOS functions — sync contacts, check intent, accessibility (4 KB)</td></tr>
+                        <tr><td><span class="file-name">SMSReceiver.java</span></td><td>BroadcastReceiver for incoming SMS events (4 KB)</td></tr>
+                        <tr><td><span class="file-name">MainApplication.kt</span></td><td>Registers native packages (SMSPackage, SOSPackage) (3 KB)</td></tr>
+                        <tr><td><span class="file-name">MainActivity.kt</span></td><td>Main activity entry point (2 KB)</td></tr>
+                        <tr><td><span class="file-name">SMSPackage.java</span></td><td>React Native package registration for SMS module</td></tr>
+                        <tr><td><span class="file-name">SOSPackage.java</span></td><td>React Native package registration for SOS module</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- 9. Dependencies -->
+        <section id="dependencies" class="section">
+            <div class="section-header">
+                <div class="section-icon purple">📦</div>
+                <div>
+                    <div class="section-title">Key Dependencies</div>
+                    <div class="section-subtitle">46 dependencies — Expo SDK 52, React Native 0.76.7</div>
+                </div>
+            </div>
+            <div class="table-card">
+                <table>
+                    <thead>
+                        <tr><th>Category</th><th>Packages</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="color: var(--text-primary); font-weight: 600;">Navigation</td>
+                            <td>
+                                <span class="dep-badge nav">@react-navigation/native</span>
+                                <span class="dep-badge nav">bottom-tabs</span>
+                                <span class="dep-badge nav">native-stack</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="color: var(--text-primary); font-weight: 600;">Firebase</td>
+                            <td>
+                                <span class="dep-badge firebase">firebase</span>
+                                <span class="dep-badge firebase">@react-native-firebase/app</span>
+                                <span class="dep-badge firebase">firestore</span>
+                                <span class="dep-badge firebase">messaging</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="color: var(--text-primary); font-weight: 600;">Location</td>
+                            <td>
+                                <span class="dep-badge location">expo-location</span>
+                                <span class="dep-badge location">react-native-maps</span>
+                                <span class="dep-badge location">@react-native-community/geolocation</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="color: var(--text-primary); font-weight: 600;">Camera & Media</td>
+                            <td>
+                                <span class="dep-badge camera">expo-camera</span>
+                                <span class="dep-badge camera">expo-media-library</span>
+                                <span class="dep-badge camera">expo-av</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="color: var(--text-primary); font-weight: 600;">Security</td>
+                            <td>
+                                <span class="dep-badge security">expo-local-authentication</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="color: var(--text-primary); font-weight: 600;">Networking</td>
+                            <td>
+                                <span class="dep-badge network">socket.io-client</span>
+                                <span class="dep-badge network">expo-network</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="color: var(--text-primary); font-weight: 600;">Storage</td>
+                            <td>
+                                <span class="dep-badge storage">@react-native-async-storage/async-storage</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="color: var(--text-primary); font-weight: 600;">Device</td>
+                            <td>
+                                <span class="dep-badge device">expo-battery</span>
+                                <span class="dep-badge device">expo-device</span>
+                                <span class="dep-badge device">react-native-volume-manager</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="color: var(--text-primary); font-weight: 600;">UI</td>
+                            <td>
+                                <span class="dep-badge ui">expo-linear-gradient</span>
+                                <span class="dep-badge ui">react-native-reanimated</span>
+                                <span class="dep-badge ui">@expo/vector-icons</span>
+                                <span class="dep-badge ui">react-native-gesture-handler</span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        // ─── Mermaid Init ───
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'dark',
+            themeVariables: {
+                darkMode: true,
+                primaryColor: '#E53935',
+                primaryTextColor: '#f0f0f5',
+                primaryBorderColor: '#2a2a3a',
+                lineColor: '#5a5a78',
+                secondaryColor: '#1e1e2a',
+                tertiaryColor: '#16161f',
+                background: '#12121a',
+                mainBkg: '#1e1e2a',
+                nodeBorder: '#2a2a3a',
+                clusterBkg: '#16161f',
+                clusterBorder: '#2a2a3a',
+                titleColor: '#f0f0f5',
+                edgeLabelBackground: '#12121a',
+                nodeTextColor: '#f0f0f5',
+                actorTextColor: '#f0f0f5',
+                actorBkg: '#1e1e2a',
+                actorBorder: '#E53935',
+                actorLineColor: '#5a5a78',
+                signalColor: '#9898b0',
+                signalTextColor: '#f0f0f5',
+                activationBorderColor: '#E53935',
+                activationBkgColor: '#2a1010',
+                sequenceNumberColor: '#E53935',
+                noteBkgColor: '#1e1e2a',
+                noteTextColor: '#f0f0f5',
+                noteBorderColor: '#2a2a3a',
+                labelBoxBkgColor: '#1e1e2a',
+                labelBoxBorderColor: '#2a2a3a',
+                labelTextColor: '#f0f0f5',
+                loopTextColor: '#9898b0',
+                fontFamily: 'Inter, sans-serif',
+                fontSize: '14px',
+            },
+            flowchart: {
+                htmlLabels: true,
+                curve: 'basis',
+                padding: 16,
+                nodeSpacing: 30,
+                rankSpacing: 50,
+            },
+            sequence: {
+                diagramMarginX: 30,
+                diagramMarginY: 20,
+                actorMargin: 60,
+                width: 200,
+                height: 50,
+                boxMargin: 10,
+                boxTextMargin: 5,
+                noteMargin: 10,
+                messageMargin: 30,
+                mirrorActors: false,
+                useMaxWidth: true,
+            },
+            er: {
+                useMaxWidth: true,
+                fontSize: 13,
+            },
+        });
+
+        // ─── Smooth Scroll + Active Nav ───
+        function scrollToSection(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                const navHeight = document.querySelector('.graph-nav').offsetHeight;
+                const y = el.getBoundingClientRect().top + window.scrollY - navHeight - 20;
+                window.scrollTo({ top: y, behavior: 'smooth' });
+            }
+        }
+
+        // Active nav tracking
+        const sections = document.querySelectorAll('.section');
+        const navBtns = document.querySelectorAll('.nav-btn');
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const id = entry.target.id;
+                    navBtns.forEach(btn => {
+                        btn.classList.toggle('active',
+                            btn.getAttribute('onclick')?.includes(id));
+                    });
+                }
+            });
+        }, { rootMargin: '-20% 0px -60% 0px' });
+
+        sections.forEach(s => observer.observe(s));
+
+        // ─── Stagger animations ───
+        sections.forEach((section, i) => {
+            section.style.animationDelay = `${i * 0.1}s`;
+        });
+    </script>
+</body>
+</html>

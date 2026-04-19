@@ -32,11 +32,10 @@ import { checkSOSIntent, syncContactsToNative, openAccessibilitySettings, isSOSS
 import { useSOSSirenReceiver } from "./services/SOSSirenReceiver";
 import { registerDeviceForSiren } from "./services/SOSSirenService";
 
-console.log("Firebase Auth:", auth);
-console.log("Firestore DB:", db);
+// ✅ REMOVED console.logs - Firebase logs itself now
 
 const Tab = createBottomTabNavigator();
-const Stack = createNativeStackNavigator(); // ✅ NEW
+const Stack = createNativeStackNavigator();
 
 setNotificationHandler({
   handleNotification: async () => ({
@@ -46,11 +45,9 @@ setNotificationHandler({
   }),
 });
 
-// ✅ NEW — Bottom tabs wrapped so we can attach volume shortcut + navigation
 function MainTabs({ location }) {
   const navigation = useNavigation();
 
-  // 🔴 Volume DOWN x3 → SOS Screen opens instantly
   useVolumeShortcut(
     useCallback(() => {
       navigation.navigate("SOS");
@@ -123,9 +120,29 @@ export default function App() {
   const soundRef = useRef(null);
   const navigationRef = useRef(null);
   const [sosTriggered, setSOSTriggered] = useState(false);
-  useSOSSirenReceiver(); // ✅ Listen for incoming SOS sirens and activate alert
+  const [firebaseReady, setFirebaseReady] = useState(false);
+
+  useSOSSirenReceiver();
 
   useEffect(() => {
+    // ✅ Check Firebase is ready
+    const checkFirebase = async () => {
+      try {
+        if (auth && db) {
+          console.log("✅ Firebase is ready");
+          setFirebaseReady(true);
+        }
+      } catch (error) {
+        console.error("Firebase not ready:", error);
+      }
+    };
+
+    checkFirebase();
+  }, []);
+
+  useEffect(() => {
+    if (!firebaseReady) return; // ✅ Wait for Firebase
+
     // Check if launched via background SOS shortcut
     checkSOSIntent().then((triggered) => {
       if (triggered) {
@@ -137,8 +154,10 @@ export default function App() {
     getCoord();
     requestNotificationPermissions();
 
-    // 🚨 Register this device so it can receive SOS sirens
-    registerDeviceForSiren("this_user_phone"); // replace with actual logged-in user phone
+    // ✅ NOW register device - Firebase is ready
+    registerDeviceForSiren("this_user_phone")
+      .then(() => console.log("✅ Device registered for SOS"))
+      .catch((error) => console.error("❌ Failed to register device:", error));
 
     // Auto-start SMS Shield if previously active
     isShieldActive().then((active) => {
@@ -171,7 +190,7 @@ export default function App() {
         soundRef.current.unloadAsync();
       }
     };
-  }, []);
+  }, [firebaseReady]); // ✅ Add firebaseReady as dependency
 
   async function getCoord() {
     const { status } = await requestForegroundPermissionsAsync();
@@ -190,7 +209,6 @@ export default function App() {
       <NavigationContainer
         ref={navigationRef}
         onReady={() => {
-          // If SOS was triggered from background, navigate to SOS screen
           if (sosTriggered) {
             navigationRef.current?.navigate("SOS");
             setSOSTriggered(false);
@@ -208,7 +226,6 @@ export default function App() {
           },
         }}
       >
-        {/* ✅ Stack wraps tabs so SOS can appear on top of everything */}
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           <Stack.Screen
             name="Splash"
@@ -219,7 +236,6 @@ export default function App() {
             {() => <MainTabs location={location} />}
           </Stack.Screen>
 
-          {/* ✅ SOS Screen — opens fullscreen when volume pressed 3x */}
           <Stack.Screen
             name="SOS"
             component={SOSScreen}

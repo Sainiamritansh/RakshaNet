@@ -72,7 +72,13 @@
     "extra": {
       "eas": {
         "projectId": "602d7eb4-5a42-4894-a715-072d2b4504b0"
-      }
+      },
+      "firebaseApiKey": "AIzaSyD9M6X87yzI44-84p7n5oeWrtx8pXfox5k",
+      "firebaseAuthDomain": "rakshaneti.firebaseapp.com",
+      "firebaseProjectId": "rakshaneti",
+      "firebaseStorageBucket": "rakshaneti.firebasestorage.app",
+      "firebaseMessagingSenderId": "820512457164",
+      "firebaseAppId": "1:820512457164:android:fb164b362becb0d12b1d69"
     }
   }
 }

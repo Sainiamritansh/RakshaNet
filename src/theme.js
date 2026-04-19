@@ -37,7 +37,6 @@ export const COLORS = {
   // Misc
   divider:        '#F5F5F5',
   overlay:        'rgba(0, 0, 0, 0.5)',
-  overlayLight:   'rgba(0, 0, 0, 0.3)',
 };
 
 export const RADIUS = {

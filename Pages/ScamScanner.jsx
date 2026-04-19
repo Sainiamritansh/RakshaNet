@@ -11,12 +11,14 @@ import {
     getCommunityReports, submitReport, subscribeToCommunityReports,
     REPORT_CATEGORIES,
 } from '../services/CommunityReports';
+import { COLORS, TYPOGRAPHY, RADIUS, SPACING, SHADOWS } from '../src/theme';
 
 const { width } = Dimensions.get('window');
 const HISTORY_KEY = '@scan_history';
 
-const COLORS = { safe: '#10B981', suspicious: '#F59E0B', scam: '#EF4444' };
-const LABELS = { safe: 'Safe', suspicious: 'Suspicious', scam: 'Scam' };
+const STATUS_COLORS = { safe: '#43A047', suspicious: '#E65100', scam: '#C62828' };
+const STATUS_LABELS = { safe: 'Safe', suspicious: 'Suspicious', scam: 'Scam' };
+const STATUS_ICONS = { safe: 'checkmark-circle', suspicious: 'alert-circle', scam: 'close-circle' };
 
 export default function ScamScanner() {
     // ── State ──
@@ -45,7 +47,6 @@ export default function ScamScanner() {
         return () => { if (unsubRef.current) unsubRef.current(); };
     }, []);
 
-    // Score count-up effect
     useEffect(() => {
         if (result) {
             scoreAnim.setValue(0);
@@ -89,32 +90,27 @@ export default function ScamScanner() {
             return;
         }
 
-        // Reset & animate
         setResult(null);
         setCommunity(null);
         setScanning(true);
         resultSlide.setValue(400);
         resultOpacity.setValue(0);
 
-        // Pulse animation
         const pulse = Animated.loop(
             Animated.sequence([
-                Animated.timing(scanPulse, { toValue: 1.06, duration: 400, useNativeDriver: true }),
+                Animated.timing(scanPulse, { toValue: 1.03, duration: 400, useNativeDriver: true }),
                 Animated.timing(scanPulse, { toValue: 1, duration: 400, useNativeDriver: true }),
             ])
         );
         pulse.start();
 
-        // 1. Local analysis
         const analysis = fullScan(scanInput, scanType === 'number' ? 'number' : 'message');
 
-        // 2. Community check (for numbers)
         let communityData = null;
         if (scanType === 'number') {
             communityData = await getCommunityReports(scanInput);
             setCommunity(communityData);
 
-            // If 10+ reports → auto-scam
             if (communityData.found && communityData.reportCount >= 10) {
                 analysis.score = Math.max(analysis.score, 85);
                 analysis.category = 'scam';
@@ -128,14 +124,12 @@ export default function ScamScanner() {
                 else if (analysis.score >= 31) analysis.category = 'suspicious';
             }
 
-            // Subscribe to live updates
             if (unsubRef.current) unsubRef.current();
             unsubRef.current = subscribeToCommunityReports(scanInput, (count) => {
                 setLiveCount(count);
             });
         }
 
-        // Artificial delay for UX
         await new Promise(r => setTimeout(r, 1500));
 
         pulse.stop();
@@ -143,13 +137,11 @@ export default function ScamScanner() {
         setScanning(false);
         setResult(analysis);
 
-        // Animate result card in
         Animated.parallel([
             Animated.spring(resultSlide, { toValue: 0, useNativeDriver: true, tension: 50, friction: 9 }),
             Animated.timing(resultOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
         ]).start();
 
-        // Save to history
         await saveHistory({
             id: `scan_${Date.now()}`,
             input: scanInput,
@@ -186,225 +178,167 @@ export default function ScamScanner() {
         }
     };
 
-    // ── Get result color ──
-    const getColor = (cat) => COLORS[cat] || '#9E9E9E';
-    const getLabel = (cat) => LABELS[cat] || 'Unknown';
+    const getColor = (cat) => STATUS_COLORS[cat] || '#9E9E9E';
+    const getLabel = (cat) => STATUS_LABELS[cat] || 'Unknown';
+    const getIcon = (cat) => STATUS_ICONS[cat] || 'ellipse';
 
-    // ── Render ──
+    const getTimeAgo = (timestamp) => {
+        const diff = Date.now() - timestamp;
+        const hours = Math.floor(diff / 3600000);
+        if (hours < 1) return 'Just now';
+        if (hours < 24) return `${hours} HOURS AGO`;
+        const days = Math.floor(hours / 24);
+        if (days === 1) return 'YESTERDAY';
+        return `${days} DAYS AGO`;
+    };
+
+    const getResultLabel = (cat) => {
+        if (cat === 'safe') return 'SAFE RESULT';
+        if (cat === 'suspicious') return 'SUSPICIOUS';
+        return 'VERIFIED';
+    };
+
     return (
         <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.container}
         >
-            <StatusBar barStyle="light-content" backgroundColor="#0F0F0F" />
+            <StatusBar barStyle="dark-content" backgroundColor={COLORS.bgWarm} />
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
 
-                {/* Header */}
+                {/* Header — Greeting style */}
                 <View style={styles.header}>
-                    <Text style={styles.headerLabel}>RakshaNet</Text>
-                    <Text style={styles.headerTitle}>Scam Scanner</Text>
-                    <Text style={styles.headerSub}>Check any number or message for scams</Text>
-                </View>
-
-                {/* Input Tabs */}
-                <View style={styles.tabRow}>
-                    <TouchableOpacity
-                        style={[styles.tab, activeTab === 'number' && styles.tabActive]}
-                        onPress={() => { setActiveTab('number'); setResult(null); setInput(''); }}
-                    >
-                        <Ionicons name="call" size={16} color={activeTab === 'number' ? '#FFF' : '#888'} />
-                        <Text style={[styles.tabText, activeTab === 'number' && styles.tabTextActive]}>Scan Number</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={[styles.tab, activeTab === 'message' && styles.tabActive]}
-                        onPress={() => { setActiveTab('message'); setResult(null); setInput(''); }}
-                    >
-                        <Ionicons name="chatbubble" size={16} color={activeTab === 'message' ? '#FFF' : '#888'} />
-                        <Text style={[styles.tabText, activeTab === 'message' && styles.tabTextActive]}>Scan Message</Text>
+                    <View style={styles.headerLeft}>
+                        <View style={styles.headerAvatar}>
+                            <Ionicons name="person" size={20} color={COLORS.primary} />
+                        </View>
+                        <Text style={styles.headerGreeting}>Namaste, Guardian</Text>
+                    </View>
+                    <TouchableOpacity style={styles.bellBtn}>
+                        <Ionicons name="notifications-outline" size={22} color={COLORS.textSecondary} />
                     </TouchableOpacity>
                 </View>
 
-                {/* Input */}
+                {/* Page Title */}
+                <View style={styles.titleSection}>
+                    <Text style={styles.pageTitle}>Scam Scanner</Text>
+                    <Text style={styles.pageSubtitle}>
+                        Protect yourself from phishing and fraudulent links in real-time.
+                    </Text>
+                </View>
+
+                {/* Input Card */}
                 <View style={styles.inputCard}>
                     <TextInput
                         style={[styles.input, activeTab === 'message' && styles.inputMultiline]}
-                        placeholder={activeTab === 'number' ? 'Enter phone number...' : 'Paste message text here...'}
-                        placeholderTextColor="#555"
+                        placeholder="Paste link or message here..."
+                        placeholderTextColor={COLORS.textMuted}
                         value={input}
                         onChangeText={setInput}
                         keyboardType={activeTab === 'number' ? 'phone-pad' : 'default'}
                         multiline={activeTab === 'message'}
-                        numberOfLines={activeTab === 'message' ? 4 : 1}
+                        numberOfLines={activeTab === 'message' ? 3 : 1}
                     />
+                    <View style={styles.inputSearchIcon}>
+                        <Ionicons name="search" size={20} color={COLORS.textMuted} />
+                    </View>
                 </View>
 
-                {/* Scan Button */}
+                {/* Scan Button — Orange/Red gradient feel */}
                 <Animated.View style={{ transform: [{ scale: scanPulse }] }}>
                     <TouchableOpacity
                         style={[styles.scanBtn, scanning && styles.scanBtnActive]}
                         onPress={() => handleScan()}
                         disabled={scanning}
-                        activeOpacity={0.8}
+                        activeOpacity={0.85}
                     >
                         {scanning ? (
                             <View style={styles.scanBtnContent}>
                                 <ActivityIndicator color="#FFF" size="small" />
-                                <Text style={styles.scanBtnText}>SCANNING...</Text>
+                                <Text style={styles.scanBtnText}>Scanning...</Text>
                             </View>
                         ) : (
                             <View style={styles.scanBtnContent}>
-                                <Ionicons name="scan" size={22} color="#FFF" />
-                                <Text style={styles.scanBtnText}>SCAN NOW</Text>
+                                <Text style={styles.scanBtnText}>Scan Now</Text>
                             </View>
                         )}
                     </TouchableOpacity>
                 </Animated.View>
 
-                {/* Community Warning (shown before result if reports exist) */}
-                {community && community.found && (
-                    <View style={styles.communityCard}>
-                        <View style={styles.communityHeader}>
-                            <Ionicons name="people" size={20} color="#F59E0B" />
-                            <Text style={styles.communityTitle}>Community Reports</Text>
-                        </View>
-                        <Text style={styles.communityCount}>
-                            {community.verdict === 'confirmed' ? '🔴 CONFIRMED SCAM by community' :
-                                community.verdict === 'many' ? '🚨 Many users reported this as scam' :
-                                    community.verdict === 'few' ? '⚠️ A few users flagged this' :
-                                        'Be the first to report this'}
-                        </Text>
-                        <View style={styles.communityStats}>
-                            <View style={styles.commStat}>
-                                <Text style={styles.commStatIcon}>👥</Text>
-                                <Text style={styles.commStatText}>{liveCount || community.reportCount} reported</Text>
-                            </View>
-                            {community.firstReported && (
-                                <View style={styles.commStat}>
-                                    <Text style={styles.commStatIcon}>📅</Text>
-                                    <Text style={styles.commStatText}>First: {community.firstReported}</Text>
-                                </View>
-                            )}
-                            {community.mostCommonCategory && (
-                                <View style={styles.commStat}>
-                                    <Text style={styles.commStatIcon}>🏷️</Text>
-                                    <Text style={styles.commStatText}>
-                                        Type: {REPORT_CATEGORIES.find(c => c.id === community.mostCommonCategory)?.label || community.mostCommonCategory}
-                                    </Text>
-                                </View>
-                            )}
-                        </View>
-                        {/* Report count bar */}
-                        <View style={styles.reportBar}>
-                            <View style={[styles.reportBarFill, {
-                                width: `${Math.min((community.reportCount / 20) * 100, 100)}%`,
-                                backgroundColor: community.reportCount > 10 ? '#EF4444' : community.reportCount > 5 ? '#F59E0B' : '#10B981',
-                            }]} />
-                        </View>
-                    </View>
-                )}
-
-                {/* Result Card */}
+                {/* Result Card — Alert style */}
                 {result && (
                     <Animated.View style={[
                         styles.resultCard,
                         {
-                            transform: [{ translateY: resultSlide }], opacity: resultOpacity,
-                            borderColor: getColor(result.category) + '40'
+                            transform: [{ translateY: resultSlide }],
+                            opacity: resultOpacity,
+                            backgroundColor: result.category === 'scam' ? '#FFF3E0' :
+                                result.category === 'suspicious' ? '#FFF8E1' : COLORS.accentBg,
+                            borderColor: result.category === 'scam' ? '#FFCC02' :
+                                result.category === 'suspicious' ? '#F59E0B' : COLORS.accent,
                         },
                     ]}>
-                        {/* Score Circle */}
-                        <View style={styles.scoreSection}>
-                            <View style={[styles.scoreCircle, { borderColor: getColor(result.category) }]}>
-                                <Text style={[styles.scoreNumber, { color: getColor(result.category) }]}>
-                                    {displayScore}
-                                </Text>
+                        <View style={styles.resultHeader}>
+                            <View style={[styles.resultIconBg, {
+                                backgroundColor: result.category === 'scam' ? '#FFE0B2' :
+                                    result.category === 'suspicious' ? '#FFF3E0' : '#C8E6C9',
+                            }]}>
+                                <Ionicons
+                                    name={result.category === 'scam' ? 'warning' : result.category === 'suspicious' ? 'alert-circle' : 'shield-checkmark'}
+                                    size={28}
+                                    color={getColor(result.category)}
+                                />
                             </View>
-                            <Text style={styles.scoreLabel}>Scam Probability</Text>
-                        </View>
-
-                        {/* Verdict */}
-                        <View style={[styles.verdictBadge, { backgroundColor: getColor(result.category) + '15', borderColor: getColor(result.category) }]}>
-                            <Ionicons
-                                name={result.category === 'safe' ? 'shield-checkmark' : result.category === 'suspicious' ? 'warning' : 'alert-circle'}
-                                size={24} color={getColor(result.category)}
-                            />
-                            <View style={{ marginLeft: 10, flex: 1 }}>
-                                <Text style={[styles.verdictTitle, { color: getColor(result.category) }]}>
-                                    {result.category === 'safe' ? 'This appears to be Safe' :
-                                        result.category === 'suspicious' ? 'This looks Suspicious' :
-                                            'HIGH RISK - Likely a SCAM!'}
+                            <View style={{ flex: 1, marginLeft: SPACING.md }}>
+                                <Text style={[styles.resultTitle, { color: getColor(result.category) }]}>
+                                    {result.category === 'scam' ? 'Danger! Phishing Link\nDetected' :
+                                        result.category === 'suspicious' ? 'Suspicious Content\nDetected' :
+                                            'Content Appears Safe'}
                                 </Text>
-                                <Text style={styles.verdictSub}>
-                                    {result.category === 'safe' ? 'No spam indicators found' :
-                                        result.category === 'suspicious' ? 'Be careful before responding' :
-                                            'Do not respond or click any links'}
+                                <Text style={styles.resultSubLabel}>
+                                    {result.category === 'scam' ? 'HIGH RISK SECURITY ALERT' :
+                                        result.category === 'suspicious' ? 'MEDIUM RISK' :
+                                            'LOW RISK'}
                                 </Text>
                             </View>
                         </View>
 
-                        {/* Reasons */}
                         {result.reasons && result.reasons.length > 0 && (
-                            <View style={styles.reasonsSection}>
-                                <Text style={styles.reasonsTitle}>
-                                    {result.category === 'scam' ? '🚨 Alert Triggers:' : '⚠️ Reasons:'}
-                                </Text>
-                                {result.reasons.map((r, i) => (
-                                    <View key={i} style={styles.reasonRow}>
-                                        <View style={[styles.reasonDot, { backgroundColor: getColor(result.category) }]} />
-                                        <Text style={styles.reasonText}>{r}</Text>
-                                    </View>
-                                ))}
-                            </View>
-                        )}
-
-                        {/* Trigger words */}
-                        {result.triggers && result.triggers.length > 0 && (
-                            <View style={styles.triggersRow}>
-                                {result.triggers.slice(0, 6).map((t, i) => (
-                                    <View key={i} style={[styles.triggerChip, { borderColor: getColor(result.category) }]}>
-                                        <Text style={[styles.triggerText, { color: getColor(result.category) }]}>{t}</Text>
-                                    </View>
-                                ))}
-                            </View>
+                            <Text style={styles.resultDescription}>
+                                {result.reasons[0]}
+                            </Text>
                         )}
 
                         {/* Action Buttons */}
-                        <View style={styles.resultActions}>
-                            {result.category === 'safe' ? (
+                        {result.category !== 'safe' && (
+                            <View style={styles.resultActions}>
                                 <TouchableOpacity
-                                    style={[styles.actionBtn, { backgroundColor: '#F59E0B' }]}
+                                    style={styles.resultActionBtn}
                                     onPress={() => setShowReport(true)}
                                 >
-                                    <Ionicons name="flag" size={16} color="#FFF" />
-                                    <Text style={styles.actionBtnText}>Mark as Spam</Text>
+                                    <Ionicons name="flag" size={16} color={COLORS.primary} />
+                                    <Text style={styles.resultActionText}>Report</Text>
                                 </TouchableOpacity>
-                            ) : (
-                                <>
-                                    <TouchableOpacity
-                                        style={[styles.actionBtn, { backgroundColor: '#EF4444' }]}
-                                        onPress={() => setShowReport(true)}
-                                    >
-                                        <Ionicons name="flag" size={16} color="#FFF" />
-                                        <Text style={styles.actionBtnText}>Report</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                        style={[styles.actionBtn, { backgroundColor: '#6B7280' }]}
-                                        onPress={() => Alert.alert('Blocked', 'Number added to blocklist.')}
-                                    >
-                                        <Ionicons name="ban" size={16} color="#FFF" />
-                                        <Text style={styles.actionBtnText}>Block</Text>
-                                    </TouchableOpacity>
-                                </>
-                            )}
-                        </View>
+                                <TouchableOpacity
+                                    style={styles.resultActionBtn}
+                                    onPress={() => Alert.alert('Blocked', 'Added to blocklist.')}
+                                >
+                                    <Ionicons name="ban" size={16} color={COLORS.textSecondary} />
+                                    <Text style={styles.resultActionText}>Block</Text>
+                                </TouchableOpacity>
+                            </View>
+                        )}
                     </Animated.View>
                 )}
 
                 {/* Scan History */}
                 {history.length > 0 && (
                     <View style={styles.historySection}>
-                        <Text style={styles.historyTitle}>Recent Scans</Text>
-                        {history.slice(0, 8).map((item) => (
+                        <View style={styles.historyHeader}>
+                            <Text style={styles.historyTitle}>Scan History</Text>
+                            <Text style={styles.historyCount}>PAST {Math.min(history.length, 3)} SCANS</Text>
+                        </View>
+                        {history.slice(0, 5).map((item) => (
                             <TouchableOpacity
                                 key={item.id}
                                 style={styles.historyCard}
@@ -415,25 +349,35 @@ export default function ScamScanner() {
                                 }}
                                 activeOpacity={0.7}
                             >
-                                <View style={[styles.historyDot, { backgroundColor: getColor(item.category) }]} />
+                                <View style={[styles.historyDot, { backgroundColor: getColor(item.category) }]}>
+                                    <Ionicons name={getIcon(item.category)} size={14} color={COLORS.bgLight} />
+                                </View>
                                 <View style={styles.historyInfo}>
                                     <Text style={styles.historyInput} numberOfLines={1}>
                                         {item.input}
                                     </Text>
-                                    <Text style={styles.historyTime}>
-                                        {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                        {item.communityCount > 0 ? ` · 👥 ${item.communityCount}` : ''}
+                                    <Text style={styles.historyMeta}>
+                                        {getTimeAgo(item.timestamp)} • {getResultLabel(item.category)}
                                     </Text>
                                 </View>
-                                <View style={[styles.historyBadge, { backgroundColor: getColor(item.category) + '20', borderColor: getColor(item.category) }]}>
-                                    <Text style={[styles.historyBadgeText, { color: getColor(item.category) }]}>
-                                        {getLabel(item.category)}
-                                    </Text>
-                                </View>
+                                <Ionicons name="chevron-forward" size={18} color={COLORS.textMutedLight} />
                             </TouchableOpacity>
                         ))}
                     </View>
                 )}
+
+                {/* Security Tip Card */}
+                <View style={styles.tipCard}>
+                    <View style={styles.tipIconBg}>
+                        <Ionicons name="bulb" size={20} color={COLORS.primary} />
+                    </View>
+                    <View style={styles.tipInfo}>
+                        <Text style={styles.tipTitle}>Security Tip</Text>
+                        <Text style={styles.tipText}>
+                            Never share your OTP or PIN over a link, even if the website looks official.
+                        </Text>
+                    </View>
+                </View>
 
                 <View style={{ height: 30 }} />
             </ScrollView>
@@ -448,7 +392,6 @@ export default function ScamScanner() {
                             {input}
                         </Text>
 
-                        {/* Category Selector */}
                         <Text style={styles.reportLabel}>Select Category:</Text>
                         <View style={styles.categoryGrid}>
                             {REPORT_CATEGORIES.map(cat => (
@@ -465,18 +408,16 @@ export default function ScamScanner() {
                             ))}
                         </View>
 
-                        {/* Note */}
                         <TextInput
                             style={styles.reportNoteInput}
                             placeholder="Add a note (optional)..."
-                            placeholderTextColor="#555"
+                            placeholderTextColor={COLORS.textMuted}
                             value={reportNote}
                             onChangeText={setReportNote}
                             multiline
                             numberOfLines={2}
                         />
 
-                        {/* Submit */}
                         <TouchableOpacity
                             style={styles.submitBtn}
                             onPress={handleSubmitReport}
@@ -500,138 +441,315 @@ export default function ScamScanner() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#0F0F0F' },
+    container: { flex: 1, backgroundColor: COLORS.bgWarm },
     scroll: { paddingBottom: 20 },
 
-    // Header
-    header: { paddingTop: 55, paddingHorizontal: 24, paddingBottom: 12 },
-    headerLabel: { fontSize: 12, color: '#EF4444', fontWeight: '700', letterSpacing: 2, textTransform: 'uppercase' },
-    headerTitle: { fontSize: 30, fontWeight: '900', color: '#FFF', marginTop: 4 },
-    headerSub: { fontSize: 13, color: '#666', marginTop: 4 },
+    // Header — Greeting
+    header: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingTop: 52,
+        paddingBottom: SPACING.sm,
+        paddingHorizontal: SPACING.xxl,
+    },
+    headerLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: SPACING.md,
+    },
+    headerAvatar: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: COLORS.primaryBg,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    headerGreeting: {
+        ...TYPOGRAPHY.body,
+        fontWeight: '700',
+        color: COLORS.textDark,
+    },
+    bellBtn: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
 
-    // Tabs
-    tabRow: { flexDirection: 'row', marginHorizontal: 20, marginTop: 16, backgroundColor: '#1A1A1A', borderRadius: 14, padding: 4 },
-    tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 12, gap: 6 },
-    tabActive: { backgroundColor: '#EF4444' },
-    tabText: { fontSize: 14, color: '#888', fontWeight: '600' },
-    tabTextActive: { color: '#FFF' },
+    // Title
+    titleSection: {
+        paddingHorizontal: SPACING.xxl,
+        paddingBottom: SPACING.lg,
+    },
+    pageTitle: {
+        ...TYPOGRAPHY.h1,
+        color: COLORS.textDark,
+        marginBottom: SPACING.xs,
+    },
+    pageSubtitle: {
+        ...TYPOGRAPHY.caption,
+        color: COLORS.textSecondary,
+        lineHeight: 18,
+    },
 
     // Input
     inputCard: {
-        marginHorizontal: 20, marginTop: 16, backgroundColor: '#1A1A1A',
-        borderRadius: 16, borderWidth: 1, borderColor: '#2A2A2A',
+        marginHorizontal: SPACING.xxl,
+        backgroundColor: COLORS.bgLight,
+        borderRadius: RADIUS.lg,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        paddingHorizontal: SPACING.lg,
+        paddingVertical: SPACING.sm,
+        ...SHADOWS.sm,
     },
-    input: { color: '#FFF', fontSize: 16, paddingHorizontal: 18, paddingVertical: 16 },
-    inputMultiline: { minHeight: 100, textAlignVertical: 'top' },
+    input: {
+        color: COLORS.textDark,
+        ...TYPOGRAPHY.body,
+        paddingVertical: SPACING.md,
+    },
+    inputMultiline: { minHeight: 80, textAlignVertical: 'top' },
+    inputSearchIcon: {
+        paddingBottom: SPACING.sm,
+    },
 
     // Scan button
     scanBtn: {
-        marginHorizontal: 20, marginTop: 16, backgroundColor: '#EF4444',
-        borderRadius: 16, paddingVertical: 16, alignItems: 'center',
-        shadowColor: '#EF4444', shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3, shadowRadius: 12, elevation: 8,
+        marginHorizontal: SPACING.xxl,
+        marginTop: SPACING.lg,
+        backgroundColor: '#E65100',
+        borderRadius: RADIUS.lg,
+        paddingVertical: SPACING.lg,
+        alignItems: 'center',
+        ...SHADOWS.md,
     },
-    scanBtnActive: { backgroundColor: '#B91C1C' },
+    scanBtnActive: { backgroundColor: '#BF360C' },
     scanBtnContent: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-    scanBtnText: { color: '#FFF', fontSize: 17, fontWeight: '800', letterSpacing: 2 },
+    scanBtnText: { color: '#FFF', fontSize: 17, fontWeight: '700' },
 
-    // Community
-    communityCard: {
-        marginHorizontal: 20, marginTop: 16, backgroundColor: '#1C1917',
-        borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#F59E0B30',
-    },
-    communityHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
-    communityTitle: { fontSize: 15, fontWeight: '700', color: '#F59E0B' },
-    communityCount: { fontSize: 13, color: '#CCC', marginBottom: 10 },
-    communityStats: { gap: 6 },
-    commStat: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    commStatIcon: { fontSize: 14 },
-    commStatText: { fontSize: 13, color: '#AAA' },
-    reportBar: { height: 4, backgroundColor: '#2A2A2A', borderRadius: 2, marginTop: 10 },
-    reportBarFill: { height: 4, borderRadius: 2 },
-
-    // Result card
+    // Result
     resultCard: {
-        marginHorizontal: 20, marginTop: 16, backgroundColor: '#111827',
-        borderRadius: 20, padding: 20, borderWidth: 1,
+        marginHorizontal: SPACING.xxl,
+        marginTop: SPACING.xl,
+        borderRadius: RADIUS.lg,
+        padding: SPACING.xl,
+        borderWidth: 1,
     },
-    scoreSection: { alignItems: 'center', marginBottom: 16 },
-    scoreCircle: {
-        width: 90, height: 90, borderRadius: 45, borderWidth: 4,
-        justifyContent: 'center', alignItems: 'center', backgroundColor: '#0F0F0F',
+    resultHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: SPACING.md,
     },
-    scoreNumber: { fontSize: 32, fontWeight: '900' },
-    scoreLabel: { fontSize: 12, color: '#777', marginTop: 6, fontWeight: '600', letterSpacing: 1 },
-
-    // Verdict
-    verdictBadge: { flexDirection: 'row', alignItems: 'center', borderRadius: 14, padding: 14, borderWidth: 1, marginBottom: 14 },
-    verdictTitle: { fontSize: 16, fontWeight: '800' },
-    verdictSub: { fontSize: 12, color: '#999', marginTop: 3 },
-
-    // Reasons
-    reasonsSection: { marginBottom: 14 },
-    reasonsTitle: { fontSize: 13, color: '#CCC', fontWeight: '700', marginBottom: 8 },
-    reasonRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 5 },
-    reasonDot: { width: 6, height: 6, borderRadius: 3, marginTop: 5 },
-    reasonText: { fontSize: 13, color: '#AAA', flex: 1 },
-
-    // Triggers
-    triggersRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 14 },
-    triggerChip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1 },
-    triggerText: { fontSize: 11, fontWeight: '600' },
-
-    // Actions
-    resultActions: { flexDirection: 'row', gap: 10 },
-    actionBtn: {
-        flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-        paddingVertical: 12, borderRadius: 12, gap: 6,
+    resultIconBg: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
-    actionBtnText: { color: '#FFF', fontSize: 14, fontWeight: '700' },
+    resultTitle: {
+        ...TYPOGRAPHY.body,
+        fontWeight: '800',
+        lineHeight: 20,
+    },
+    resultSubLabel: {
+        ...TYPOGRAPHY.tiny,
+        color: '#E65100',
+        letterSpacing: 1,
+        marginTop: 4,
+        fontWeight: '700',
+    },
+    resultDescription: {
+        ...TYPOGRAPHY.caption,
+        color: COLORS.textSecondary,
+        lineHeight: 18,
+        marginTop: SPACING.sm,
+    },
+    resultActions: {
+        flexDirection: 'row',
+        gap: SPACING.md,
+        marginTop: SPACING.lg,
+    },
+    resultActionBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: SPACING.xs,
+        paddingHorizontal: SPACING.lg,
+        paddingVertical: SPACING.sm,
+        borderRadius: RADIUS.pill,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+    },
+    resultActionText: {
+        ...TYPOGRAPHY.small,
+        color: COLORS.textSecondary,
+    },
 
     // History
-    historySection: { marginHorizontal: 20, marginTop: 24 },
-    historyTitle: { fontSize: 17, fontWeight: '700', color: '#FFF', marginBottom: 12 },
-    historyCard: {
-        flexDirection: 'row', alignItems: 'center', backgroundColor: '#1A1A1A',
-        borderRadius: 14, padding: 14, marginBottom: 8,
-        borderWidth: 1, borderColor: '#222',
+    historySection: {
+        marginHorizontal: SPACING.xxl,
+        marginTop: SPACING.xxl,
     },
-    historyDot: { width: 10, height: 10, borderRadius: 5 },
-    historyInfo: { flex: 1, marginLeft: 12 },
-    historyInput: { fontSize: 14, color: '#DDD', fontWeight: '600' },
-    historyTime: { fontSize: 11, color: '#666', marginTop: 3 },
-    historyBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1 },
-    historyBadgeText: { fontSize: 11, fontWeight: '700' },
+    historyHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: SPACING.lg,
+    },
+    historyTitle: {
+        ...TYPOGRAPHY.h3,
+        color: COLORS.textDark,
+    },
+    historyCount: {
+        ...TYPOGRAPHY.tiny,
+        color: COLORS.textMuted,
+        letterSpacing: 0.5,
+    },
+    historyCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: SPACING.md,
+        borderBottomWidth: 1,
+        borderBottomColor: COLORS.divider,
+    },
+    historyDot: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    historyInfo: {
+        flex: 1,
+        marginLeft: SPACING.md,
+    },
+    historyInput: {
+        ...TYPOGRAPHY.body,
+        fontWeight: '600',
+        color: COLORS.textDark,
+    },
+    historyMeta: {
+        ...TYPOGRAPHY.tiny,
+        color: COLORS.textMuted,
+        marginTop: 3,
+        letterSpacing: 0.3,
+    },
+
+    // Security Tip
+    tipCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginHorizontal: SPACING.xxl,
+        marginTop: SPACING.xxl,
+        backgroundColor: COLORS.primaryBg,
+        borderRadius: RADIUS.lg,
+        padding: SPACING.lg,
+    },
+    tipIconBg: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: COLORS.bgLight,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: SPACING.md,
+    },
+    tipInfo: { flex: 1 },
+    tipTitle: {
+        ...TYPOGRAPHY.body,
+        fontWeight: '700',
+        color: COLORS.primary,
+    },
+    tipText: {
+        ...TYPOGRAPHY.small,
+        color: COLORS.textSecondary,
+        marginTop: 2,
+        lineHeight: 16,
+    },
 
     // Report modal
-    reportOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.7)' },
+    reportOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: COLORS.overlay },
     reportSheet: {
-        backgroundColor: '#111827', borderTopLeftRadius: 28, borderTopRightRadius: 28,
-        paddingHorizontal: 24, paddingBottom: 40, paddingTop: 12,
+        backgroundColor: COLORS.bgLight,
+        borderTopLeftRadius: RADIUS.xxl,
+        borderTopRightRadius: RADIUS.xxl,
+        paddingHorizontal: SPACING.xxl,
+        paddingBottom: 40,
+        paddingTop: SPACING.md,
     },
-    reportHandle: { width: 40, height: 4, backgroundColor: '#333', borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
-    reportTitle: { fontSize: 20, fontWeight: '800', color: '#FFF', marginBottom: 8 },
-    reportPreview: { fontSize: 13, color: '#777', marginBottom: 16 },
-    reportLabel: { fontSize: 14, fontWeight: '700', color: '#CCC', marginBottom: 10 },
-    categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
+    reportHandle: {
+        width: 40,
+        height: 4,
+        backgroundColor: COLORS.divider,
+        borderRadius: 2,
+        alignSelf: 'center',
+        marginBottom: SPACING.lg,
+    },
+    reportTitle: {
+        ...TYPOGRAPHY.h2,
+        color: COLORS.textDark,
+        marginBottom: SPACING.sm,
+    },
+    reportPreview: {
+        ...TYPOGRAPHY.caption,
+        color: COLORS.textMuted,
+        marginBottom: SPACING.lg,
+    },
+    reportLabel: {
+        ...TYPOGRAPHY.body,
+        fontWeight: '700',
+        color: COLORS.textDark,
+        marginBottom: SPACING.md,
+    },
+    categoryGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: SPACING.sm,
+        marginBottom: SPACING.lg,
+    },
     categoryBtn: {
-        width: (width - 72) / 3, paddingVertical: 12, alignItems: 'center',
-        backgroundColor: '#1A1A2E', borderRadius: 12, borderWidth: 1, borderColor: '#2A2A2A',
+        width: (width - 72) / 3,
+        paddingVertical: SPACING.md,
+        alignItems: 'center',
+        backgroundColor: COLORS.bgWarm,
+        borderRadius: RADIUS.md,
+        borderWidth: 1,
+        borderColor: COLORS.border,
     },
-    categoryBtnActive: { borderColor: '#EF4444', backgroundColor: '#EF444415' },
+    categoryBtnActive: {
+        borderColor: COLORS.primary,
+        backgroundColor: COLORS.primaryBg,
+    },
     categoryIcon: { fontSize: 22, marginBottom: 4 },
-    categoryLabel: { fontSize: 10, color: '#888', fontWeight: '600', textAlign: 'center' },
-    categoryLabelActive: { color: '#EF4444' },
+    categoryLabel: {
+        ...TYPOGRAPHY.tiny,
+        color: COLORS.textMuted,
+        textAlign: 'center',
+    },
+    categoryLabelActive: { color: COLORS.primary },
     reportNoteInput: {
-        backgroundColor: '#1A1A1A', borderRadius: 12, padding: 14, color: '#FFF',
-        fontSize: 14, minHeight: 60, textAlignVertical: 'top', marginBottom: 16,
-        borderWidth: 1, borderColor: '#2A2A2A',
+        backgroundColor: COLORS.bgWarm,
+        borderRadius: RADIUS.md,
+        padding: SPACING.lg,
+        color: COLORS.textDark,
+        ...TYPOGRAPHY.body,
+        minHeight: 60,
+        textAlignVertical: 'top',
+        marginBottom: SPACING.lg,
+        borderWidth: 1,
+        borderColor: COLORS.border,
     },
     submitBtn: {
-        backgroundColor: '#EF4444', borderRadius: 14, paddingVertical: 16,
-        alignItems: 'center', marginBottom: 10,
+        backgroundColor: COLORS.primary,
+        borderRadius: RADIUS.md,
+        paddingVertical: SPACING.lg,
+        alignItems: 'center',
+        marginBottom: SPACING.sm,
     },
-    submitBtnText: { color: '#FFF', fontSize: 16, fontWeight: '800' },
-    reportCancel: { alignItems: 'center', paddingVertical: 10 },
-    reportCancelText: { color: '#666', fontSize: 14 },
+    submitBtnText: { color: '#FFF', ...TYPOGRAPHY.body, fontWeight: '800' },
+    reportCancel: { alignItems: 'center', paddingVertical: SPACING.md },
+    reportCancelText: { color: COLORS.textMuted, ...TYPOGRAPHY.body },
 });
